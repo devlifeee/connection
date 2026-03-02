@@ -1,0 +1,245 @@
+import { useState } from 'react';
+import { Lock, AlertTriangle, RefreshCw, Copy } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import GeometricAvatar from './GeometricAvatar';
+import { generateNodeId } from '@/data/mockData';
+import { useToast } from '@/hooks/use-toast';
+import Logo from './Logo';
+
+type SettingsTab = 'profile' | 'network' | 'privacy' | 'audio' | 'interface' | 'about';
+
+interface Props {
+  user: { name: string; nodeId: string; avatar: number };
+  onUpdateUser: (data: Partial<{ name: string; nodeId: string; avatar: number }>) => void;
+}
+
+const tabs: { id: SettingsTab; label: string }[] = [
+  { id: 'profile', label: 'Профиль' },
+  { id: 'network', label: 'Сеть' },
+  { id: 'privacy', label: 'Приватность' },
+  { id: 'audio', label: 'Аудио и видео' },
+  { id: 'interface', label: 'Интерфейс' },
+  { id: 'about', label: 'О приложении' },
+];
+
+const SettingsPanel = ({ user, onUpdateUser }: Props) => {
+  const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
+  const [name, setName] = useState(user.name);
+  const { toast } = useToast();
+
+  // Settings state
+  const [mdns, setMdns] = useState(true);
+  const [udp, setUdp] = useState(false);
+  const [port, setPort] = useState('9876');
+  const [showIp, setShowIp] = useState(true);
+  const [saveHistory, setSaveHistory] = useState(true);
+  const [vanishing, setVanishing] = useState(false);
+  const [noiseSuppression, setNoiseSuppression] = useState(true);
+  const [echoCancellation, setEchoCancellation] = useState(true);
+  const [compactView, setCompactView] = useState(false);
+  const [showIdInChat, setShowIdInChat] = useState(false);
+  const [networkAnimation, setNetworkAnimation] = useState(true);
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
+
+  const copyId = () => {
+    navigator.clipboard.writeText(user.nodeId);
+    toast({ title: 'Скопировано', description: user.nodeId });
+  };
+
+  return (
+    <div className="flex-1 flex h-full overflow-hidden">
+      {/* Tab list */}
+      <div className="w-48 border-r border-border p-3 space-y-1 shrink-0 hidden sm:block">
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+              activeTab === t.id ? 'bg-card text-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+        {/* Mobile tabs */}
+        <div className="flex gap-2 overflow-x-auto sm:hidden pb-2">
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs whitespace-nowrap ${
+                activeTab === t.id ? 'bg-card text-primary' : 'text-muted-foreground'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'profile' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Профиль</h3>
+            <div className="flex items-center gap-4 mb-4">
+              <GeometricAvatar index={user.avatar} size={64} />
+              <div className="flex gap-2">
+                {[0, 1, 2, 3, 4, 5].map(i => (
+                  <GeometricAvatar key={i} index={i} size={32} selected={user.avatar === i}
+                    onClick={() => onUpdateUser({ avatar: i })} />
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Имя</label>
+              <div className="flex gap-2">
+                <Input value={name} onChange={e => setName(e.target.value)} className="bg-card" />
+                <Button size="sm" onClick={() => { onUpdateUser({ name }); toast({ title: 'Сохранено' }); }}>
+                  Сохранить
+                </Button>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Идентификатор</label>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm text-primary">{user.nodeId}</span>
+                <Copy size={14} className="cursor-pointer text-muted-foreground hover:text-foreground" onClick={copyId} />
+              </div>
+            </div>
+            <Button variant="outline" size="sm" className="gap-2"
+              onClick={() => {
+                const newId = generateNodeId();
+                onUpdateUser({ nodeId: newId });
+                toast({ title: 'Новый ключ сгенерирован', description: newId });
+              }}
+            >
+              <RefreshCw size={14} /> Сгенерировать новый ключ
+            </Button>
+            <p className="text-[10px] text-destructive flex items-center gap-1">
+              <AlertTriangle size={10} /> Смена ключа приведёт к потере текущей идентичности
+            </p>
+          </div>
+        )}
+
+        {activeTab === 'network' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Сеть</h3>
+            <SettingToggle label="Автообнаружение (mDNS)" checked={mdns} onChange={setMdns} />
+            <SettingToggle label="UDP-рассылка (резерв)" checked={udp} onChange={setUdp} />
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Порт</label>
+              <Input value={port} onChange={e => setPort(e.target.value)} className="bg-card w-32" />
+            </div>
+            <SettingToggle label="Показывать IP другим узлам" checked={showIp} onChange={setShowIp} />
+          </div>
+        )}
+
+        {activeTab === 'privacy' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Приватность</h3>
+            <div className="flex items-center justify-between py-2">
+              <div className="flex items-center gap-2">
+                <Lock size={14} className="text-primary" />
+                <span className="text-sm">Сквозное шифрование</span>
+              </div>
+              <Switch checked disabled />
+            </div>
+            <SettingToggle label="Сохранять историю локально" checked={saveHistory} onChange={setSaveHistory} />
+            <Button variant="destructive" size="sm">Очистить историю</Button>
+            <SettingToggle label="Исчезающие сообщения" checked={vanishing} onChange={setVanishing} />
+          </div>
+        )}
+
+        {activeTab === 'audio' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Аудио и видео</h3>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Микрофон</label>
+              <select className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm">
+                <option>Микрофон по умолчанию</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Камера</label>
+              <select className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm">
+                <option>Камера по умолчанию</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Динамики</label>
+              <select className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm">
+                <option>Динамики по умолчанию</option>
+              </select>
+            </div>
+            {/* Audio level visualizer */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-2 block">Уровень звука</label>
+              <div className="flex gap-1 h-8 items-end">
+                {Array.from({ length: 16 }).map((_, i) => (
+                  <div key={i} className="w-2 bg-primary rounded-sm animate-pulse"
+                    style={{ height: `${Math.random() * 100}%`, animationDelay: `${i * 0.1}s` }} />
+                ))}
+              </div>
+            </div>
+            <SettingToggle label="Шумоподавление" checked={noiseSuppression} onChange={setNoiseSuppression} />
+            <SettingToggle label="Эхоподавление" checked={echoCancellation} onChange={setEchoCancellation} />
+          </div>
+        )}
+
+        {activeTab === 'interface' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Интерфейс</h3>
+            <SettingToggle label="Компактный вид" checked={compactView} onChange={setCompactView} />
+            <SettingToggle label="Показывать ID в чате" checked={showIdInChat} onChange={setShowIdInChat} />
+            <SettingToggle label="Анимация сети" checked={networkAnimation} onChange={setNetworkAnimation} />
+            <div>
+              <label className="text-xs text-muted-foreground mb-2 block">Размер шрифта</label>
+              <div className="flex gap-2">
+                {(['small', 'medium', 'large'] as const).map(s => (
+                  <button key={s} onClick={() => setFontSize(s)}
+                    className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                      fontSize === s ? 'border-primary text-primary bg-primary/10' : 'border-border text-muted-foreground'
+                    }`}
+                  >
+                    {s === 'small' ? 'Мелкий' : s === 'medium' ? 'Средний' : 'Крупный'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'about' && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Logo size={48} />
+              <div>
+                <h3 className="text-lg font-semibold">СВЯЗЬ</h3>
+                <p className="text-xs text-muted-foreground">v0.1.0</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">Разработано для NuclearHack МИФИ</p>
+            <p className="text-sm text-muted-foreground italic">
+              «Без серверов. Без аккаунтов. Без компромиссов.»
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+function SettingToggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm">{label}</span>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+export default SettingsPanel;
