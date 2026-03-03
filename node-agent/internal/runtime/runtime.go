@@ -13,11 +13,8 @@ import (
 	"github.com/multiformats/go-multiaddr"
 
 	"github.com/nhex-team/connection/node-agent/internal/api"
-	"github.com/nhex-team/connection/node-agent/internal/db"
 	"github.com/nhex-team/connection/node-agent/internal/discovery"
-	"github.com/nhex-team/connection/node-agent/internal/filetransfer"
 	"github.com/nhex-team/connection/node-agent/internal/identity"
-	"github.com/nhex-team/connection/node-agent/internal/media"
 	"github.com/nhex-team/connection/node-agent/internal/presence"
 	"github.com/nhex-team/connection/node-agent/internal/protocol"
 )
@@ -30,30 +27,11 @@ type Runtime struct {
 	notifee     *discovery.Notifee
 	presence    *presence.Service
 	presenceDB  *presence.Store
-	files       *filetransfer.Manager
-	media       *media.Manager
-	db          *db.Store
 	cancelFn    context.CancelFunc
 }
 
 func Start(ctx context.Context, cfg Config) (*Runtime, error) {
 	ctx, cancel := context.WithCancel(ctx)
-
-	// DB Connection (Optional for now)
-	var database *db.Store
-	if cfg.DatabaseURL != "" {
-		var err error
-		database, err = db.NewStore(ctx, cfg.DatabaseURL)
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("failed to connect to db: %w", err)
-		}
-		// Auto-migrate
-		// Assuming migrations are in "./internal/db/migrations" relative to binary or we embed them.
-		// For simplicity, let's skip auto-migration or assume path exists.
-		// In dev:
-		_ = database.Migrate(ctx, "internal/db/migrations")
-	}
 
 	keyPath := filepath.Join(cfg.DataDir, "identity.key")
 	priv, err := identity.LoadOrCreatePrivateKey(keyPath)
@@ -77,16 +55,8 @@ func Start(ctx context.Context, cfg Config) (*Runtime, error) {
 		return nil, err
 	}
 
-	chat := protocol.NewChatHandler(h)
+	chat := &protocol.ChatHandler{}
 	h.SetStreamHandler(chat.ProtocolID(cfg.ProtocolChat), chat.HandleStream)
-
-	files := filetransfer.NewManager(h, filetransfer.Config{
-		DownloadsDir: filepath.Join(cfg.DataDir, "downloads"),
-	})
-	files.Start()
-	
-	mediaMgr := media.NewManager(h)
-	mediaMgr.Start()
 
 	n := discovery.NewNotifee(ctx, 64)
 	md, err := discovery.StartMDNS(h, cfg.ServiceName, n)
@@ -119,7 +89,7 @@ func Start(ctx context.Context, cfg Config) (*Runtime, error) {
 			"media_signal": cfg.ProtocolMediaSign,
 			"presence":     cfg.ProtocolPresence,
 		},
-	}, pdb, files, mediaMgr, cfg.ProtocolChat, protocol.NewSigner(priv), chat)
+	}, pdb)
 	if err := srv.Start(); err != nil {
 		_ = ps.Close()
 		_ = md.Close()

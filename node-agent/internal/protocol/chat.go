@@ -6,14 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
-	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
-	coreprotocol "github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p/core/protocol"
 )
 
 type Envelope struct {
@@ -61,28 +58,11 @@ func Verify(pub crypto.PubKey, e Envelope) (bool, error) {
 	return ok, nil
 }
 
-// HistoryProvider exposes read-only access to stored chat envelopes.
-type HistoryProvider interface {
-	History(peerID string, limit int) []Envelope
-}
-
 type ChatHandler struct {
-	host       host.Host
-	mu         sync.RWMutex
-	inbox      map[string][]Envelope
-	maxPerPeer int
 }
 
-func NewChatHandler(h host.Host) *ChatHandler {
-	return &ChatHandler{
-		host:       h,
-		inbox:      make(map[string][]Envelope),
-		maxPerPeer: 100,
-	}
-}
-
-func (h *ChatHandler) ProtocolID(id string) coreprotocol.ID {
-	return coreprotocol.ID(id)
+func (h *ChatHandler) ProtocolID(id string) protocol.ID {
+	return protocol.ID(id)
 }
 
 func (h *ChatHandler) HandleStream(stream network.Stream) {
@@ -98,56 +78,8 @@ func (h *ChatHandler) HandleStream(stream network.Stream) {
 			}
 			return
 		}
-
-		var env Envelope
-		if err := json.Unmarshal(line, &env); err != nil {
-			// malformed message, ignore
-			continue
-		}
-
-		// best-effort signature verification
-		remote := stream.Conn().RemotePeer()
-		pub := h.host.Peerstore().PubKey(remote)
-		if pub != nil {
-			ok, err := Verify(pub, env)
-			if err != nil || !ok {
-				continue
-			}
-		}
-
-		h.append(remote.String(), env)
-		log.Printf("chat: received message type=%s from=%s id=%s", env.Type, env.Sender, env.ID)
+		_ = line
 	}
-}
-
-func (h *ChatHandler) append(peerID string, env Envelope) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	list := h.inbox[peerID]
-	list = append(list, env)
-	if len(list) > h.maxPerPeer {
-		list = list[len(list)-h.maxPerPeer:]
-	}
-	h.inbox[peerID] = list
-}
-
-func (h *ChatHandler) History(peerID string, limit int) []Envelope {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	list := h.inbox[peerID]
-	if len(list) == 0 {
-		return nil
-	}
-	if limit <= 0 || limit >= len(list) {
-		out := make([]Envelope, len(list))
-		copy(out, list)
-		return out
-	}
-	out := make([]Envelope, limit)
-	copy(out, list[len(list)-limit:])
-	return out
 }
 
 func WriteEnvelope(ctx context.Context, w io.Writer, e Envelope) error {

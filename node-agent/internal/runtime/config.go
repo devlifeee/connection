@@ -10,7 +10,6 @@ type Config struct {
 	ServiceName       string
 	ListenPort        int
 	HTTPAddr          string
-	DatabaseURL       string // New field
 	PresenceInterval  time.Duration
 	ProtocolChat      string
 	ProtocolFile      string
