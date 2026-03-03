@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { UploadCloud, File, X, ArrowUp, ArrowDown, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fileTransfers, nodes, type FileTransfer } from '@/data/mockData';
+import { fileProtocol } from '@/content/backendBlueprint';
 
 const FilesPanel = () => {
   const [transfers, setTransfers] = useState<FileTransfer[]>(fileTransfers);
@@ -41,6 +42,20 @@ const FilesPanel = () => {
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
       <h2 className="text-lg font-semibold">Передача файлов</h2>
+
+      <div className="bg-card border border-border rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-semibold">File Protocol</p>
+          <span className="text-[10px] text-muted-foreground">Streams · SHA‑256 · Resume</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+          {fileProtocol.map(step => (
+            <div key={step} className="flex items-center gap-2 bg-background/40 border border-border rounded-md px-2 py-1">
+              <span>{step}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Drop zone */}
       <div

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import GeometricAvatar from './GeometricAvatar';
 import { getNodeByNodeId, messagesAlexey, type Message } from '@/data/mockData';
+import { messageEnvelope, messagingRules } from '@/content/backendBlueprint';
 
 interface Props {
   dialogNodeId: string | null;
@@ -78,6 +79,30 @@ const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
       {/* Encryption banner */}
       <div className="flex items-center justify-center gap-2 py-1.5 text-[10px] text-muted-foreground border-b border-border">
         <Lock size={10} /> Сквозное шифрование активно
+      </div>
+
+      <div className="px-4 py-3 border-b border-border bg-card/20">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="bg-card border border-border rounded-lg p-3">
+            <p className="text-xs font-semibold mb-2">Messaging Protocol</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-muted-foreground font-mono">
+              {messageEnvelope.map(item => (
+                <div key={item.field} className="flex items-center justify-between gap-2">
+                  <span>{item.field}</span>
+                  <span className="text-foreground/70">{item.note}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-lg p-3">
+            <p className="text-xs font-semibold mb-2">Правила доставки</p>
+            <ul className="text-[11px] text-muted-foreground space-y-1">
+              {messagingRules.map(rule => (
+                <li key={rule}>{rule}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
 
       {/* Messages */}

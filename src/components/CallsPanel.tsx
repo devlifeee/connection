@@ -3,6 +3,7 @@ import { Phone, PhoneOff, Video, MicOff, Volume2, Lock, Wifi, Camera, CameraOff 
 import GeometricAvatar from './GeometricAvatar';
 import { callRecords, getNodeByNodeId, nodes } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
+import { webrtcFlow } from '@/content/backendBlueprint';
 
 type CallState = 'idle' | 'incoming' | 'voice' | 'video';
 
@@ -109,6 +110,20 @@ const CallsPanel = () => {
         <Button size="sm" variant="outline" onClick={() => setCallState('incoming')}>
           Имитировать входящий
         </Button>
+      </div>
+
+      <div className="bg-card border border-border rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-semibold">WebRTC Signaling</p>
+          <span className="text-[10px] text-muted-foreground">Pion · DTLS · SRTP</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+          {webrtcFlow.map(step => (
+            <div key={step} className="bg-background/40 border border-border rounded-md px-2 py-1">
+              {step}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="space-y-2">
