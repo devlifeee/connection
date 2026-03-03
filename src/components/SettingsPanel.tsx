@@ -1,23 +1,27 @@
 import { useState } from 'react';
-import { Lock, AlertTriangle, RefreshCw, Copy } from 'lucide-react';
+import { Lock, AlertTriangle, RefreshCw, Copy, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import GeometricAvatar from './GeometricAvatar';
+import SessionInfo from './SessionInfo';
 import { generateNodeId } from '@/data/mockData';
 import { useToast } from '@/hooks/use-toast';
 import Logo from './Logo';
+import { roadmapPhases } from '@/content/backendBlueprint';
+import { useNodeAgentHealth, useNodeAgentIdentity, useNodeAgentPresence, useNodeAgentProtocols } from "@/hooks/useNodeAgent";
 
-type SettingsTab = 'profile' | 'network' | 'privacy' | 'audio' | 'interface' | 'about';
+type SettingsTab = 'profile' | 'network' | 'sessions' | 'privacy' | 'audio' | 'interface' | 'about';
 
 interface Props {
-  user: { name: string; nodeId: string; avatar: number };
-  onUpdateUser: (data: Partial<{ name: string; nodeId: string; avatar: number }>) => void;
+  user: { name: string; nodeId: string; avatar: number | string };
+  onUpdateUser: (data: Partial<{ name: string; nodeId: string; avatar: number | string }>) => void;
 }
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: 'profile', label: 'Профиль' },
   { id: 'network', label: 'Сеть' },
+  { id: 'sessions', label: 'Сессии' },
   { id: 'privacy', label: 'Приватность' },
   { id: 'audio', label: 'Аудио и видео' },
   { id: 'interface', label: 'Интерфейс' },
@@ -28,6 +32,10 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [name, setName] = useState(user.name);
   const { toast } = useToast();
+  const health = useNodeAgentHealth();
+  const identity = useNodeAgentIdentity();
+  const presence = useNodeAgentPresence();
+  const protocols = useNodeAgentProtocols();
 
   // Settings state
   const [mdns, setMdns] = useState(true);
@@ -87,11 +95,39 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
             <h3 className="text-lg font-semibold">Профиль</h3>
             <div className="flex items-center gap-4 mb-4">
               <GeometricAvatar index={user.avatar} size={64} />
-              <div className="flex gap-2">
-                {[0, 1, 2, 3, 4, 5].map(i => (
-                  <GeometricAvatar key={i} index={i} size={32} selected={user.avatar === i}
-                    onClick={() => onUpdateUser({ avatar: i })} />
-                ))}
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  {[0, 1, 2, 3, 4, 5].map(i => (
+                    <GeometricAvatar key={i} index={i} size={32} selected={user.avatar === i}
+                      onClick={() => onUpdateUser({ avatar: i })} />
+                  ))}
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      id="settings-avatar-upload"
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            onUpdateUser({ avatar: reader.result as string });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8 rounded-full"
+                      onClick={() => document.getElementById('settings-avatar-upload')?.click()}
+                    >
+                      <Upload size={14} />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
             <div>
@@ -135,6 +171,56 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
               <Input value={port} onChange={e => setPort(e.target.value)} className="bg-card w-32" />
             </div>
             <SettingToggle label="Показывать IP другим узлам" checked={showIp} onChange={setShowIp} />
+
+            <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Node Agent</p>
+                <span className={`text-[10px] ${health.data?.ok ? "text-primary" : "text-muted-foreground"}`}>
+                  {health.data?.ok ? "online" : "offline"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground">Peer ID</p>
+                  <p className="font-mono break-all">{identity.data?.peer_id ?? "—"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground">Fingerprint</p>
+                  <p className="font-mono break-all">{identity.data?.fingerprint ?? "—"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground">Name</p>
+                  <p className="font-mono break-all">{presence.data?.display_name ?? "—"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground">Version</p>
+                  <p className="font-mono">{presence.data?.version ?? "—"}</p>
+                </div>
+              </div>
+              {protocols.data?.protocols && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-[10px] text-muted-foreground mb-2">Protocols</p>
+                  <div className="space-y-1 text-[11px] text-muted-foreground font-mono">
+                    {Object.entries(protocols.data.protocols).map(([k, v]) => (
+                      <div key={k} className="flex items-center justify-between gap-2">
+                        <span>{k}</span>
+                        <span className="text-foreground/70 break-all">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="text-[10px] text-muted-foreground">
+                {health.data?.ok ? `uptime: ${health.data.uptime}` : "запусти node-agent: cd node-agent && go run ."}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'sessions' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Сессии и терминалы</h3>
+            <SessionInfo />
           </div>
         )}
 
@@ -226,6 +312,26 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
             <p className="text-sm text-muted-foreground italic">
               «Без серверов. Без аккаунтов. Без компромиссов.»
             </p>
+            <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Backend Roadmap</p>
+                <span className="text-[10px] text-muted-foreground">Runtime Platform</span>
+              </div>
+              <div className="space-y-2">
+                {roadmapPhases.map(phase => (
+                  <div key={phase.title} className="border border-border rounded-md px-3 py-2 bg-background/40">
+                    <p className="text-xs font-semibold mb-1">{phase.title}</p>
+                    <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                      {phase.items.map(item => (
+                        <span key={item} className="px-2 py-0.5 rounded-full border border-border bg-card">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>

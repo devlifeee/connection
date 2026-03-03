@@ -1,7 +1,7 @@
 import { avatarShapes } from '@/data/mockData';
 
 interface Props {
-  index: number;
+  index: number | string;
   size?: number;
   selected?: boolean;
   onClick?: () => void;
@@ -9,7 +9,26 @@ interface Props {
 }
 
 const GeometricAvatar = ({ index, size = 40, selected = false, onClick, className = '' }: Props) => {
-  const safeIndex = index % avatarShapes.length;
+  const isImage = typeof index === 'string' && (index.startsWith('data:') || index.startsWith('http') || index.startsWith('blob:'));
+  
+  if (isImage) {
+    return (
+      <div 
+        onClick={onClick}
+        className={`relative overflow-hidden rounded-lg cursor-pointer transition-all ${selected ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''} ${className}`}
+        style={{ width: size, height: size }}
+      >
+        <img 
+          src={index as string} 
+          alt="Avatar" 
+          className="w-full h-full object-cover"
+        />
+      </div>
+    );
+  }
+
+  const safeIndex = typeof index === 'number' ? index % avatarShapes.length : 0;
+  
   return (
     <svg
       width={size}

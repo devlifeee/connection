@@ -4,7 +4,9 @@ import {
   ChevronDown, File, Download, CheckCheck,
 } from 'lucide-react';
 import GeometricAvatar from './GeometricAvatar';
-import { getNodeByNodeId, messagesAlexey, type Message } from '@/data/mockData';
+import { getNodeByNodeId, type Message } from '@/data/mockData';
+import { messageEnvelope, messagingRules } from '@/content/backendBlueprint';
+import { useChatHistory, useNodeAgentPresencePeers, useSendChatMessage } from "@/hooks/useNodeAgent";
 
 interface Props {
   dialogNodeId: string | null;
@@ -13,11 +15,16 @@ interface Props {
 
 const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
   const node = dialogNodeId ? getNodeByNodeId(dialogNodeId) : null;
-  const [messages, setMessages] = useState<Message[]>(messagesAlexey);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [showScroll, setShowScroll] = useState(false);
+  const [backendError, setBackendError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const presencePeers = useNodeAgentPresencePeers();
+  const sendChat = useSendChatMessage();
+  const currentPeerId = presencePeers.data?.peers?.[0]?.payload.peer_id;
+  const chatHistory = useChatHistory(currentPeerId);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -30,17 +37,35 @@ const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
   };
 
   const sendMessage = () => {
-    if (!input.trim()) return;
+    const text = input.trim();
+    if (!text) return;
     const msg: Message = {
       id: Date.now().toString(),
       from: 'me',
-      text: input.trim(),
+      text,
       time: new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }),
       delivered: true,
       type: 'text',
     };
     setMessages(prev => [...prev, msg]);
     setInput('');
+    setBackendError(null);
+
+    const target = presencePeers.data?.peers?.[0];
+    const peerId = target?.payload.peer_id;
+    if (!peerId) {
+      setBackendError("Нет видимых peer в presence — сообщение осталось локально.");
+      return;
+    }
+
+    sendChat.mutate(
+      { peer_id: peerId, text },
+      {
+        onError: () => {
+          setBackendError("Не удалось отправить через node-agent.");
+        },
+      },
+    );
   };
 
   if (!node) {
@@ -80,8 +105,65 @@ const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
         <Lock size={10} /> Сквозное шифрование активно
       </div>
 
+      <div className="px-4 py-3 border-b border-border bg-card/20">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="bg-card border border-border rounded-lg p-3">
+            <p className="text-xs font-semibold mb-2">Messaging Protocol</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-muted-foreground font-mono">
+              {messageEnvelope.map(item => (
+                <div key={item.field} className="flex items-center justify-between gap-2">
+                  <span>{item.field}</span>
+                  <span className="text-foreground/70">{item.note}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-lg p-3">
+            <p className="text-xs font-semibold mb-2">Правила доставки</p>
+            <ul className="text-[11px] text-muted-foreground space-y-1">
+              {messagingRules.map(rule => (
+                <li key={rule}>{rule}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <div className="mt-2 text-[11px] text-muted-foreground">
+          <p>
+            Узел для отправки сейчас:{" "}
+            <span className="font-mono">
+              {presencePeers.data?.peers?.[0]?.payload.display_name
+                ? `${presencePeers.data.peers[0].payload.display_name} · ${presencePeers.data.peers[0].payload.peer_id}`
+                : "пока никого не видно"}
+            </span>
+          </p>
+          {backendError && (
+            <p className="text-destructive mt-1">
+              {backendError}
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* Messages */}
       <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto scrollbar-thin px-4 py-3 space-y-2 relative">
+        {/* remote messages from node-agent history */}
+        {(chatHistory?.data?.messages ?? []).map(env => {
+          const txt = env.payload && typeof env.payload === "object" ? env.payload.text ?? "" : "";
+          if (!txt) return null;
+          const time = new Date(env.timestamp).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+          return (
+            <div key={env.id} className="flex justify-start">
+              <div className="max-w-[70%] px-3 py-2 rounded-lg text-sm bg-msg-incoming">
+                <p>{txt}</p>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-[10px] text-muted-foreground">{time}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* local messages (from me) */}
         {messages.map(msg => {
           if (msg.type === 'system') {
             return (

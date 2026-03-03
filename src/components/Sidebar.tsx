@@ -7,7 +7,7 @@ import { nodes, dialogs, getNodeByNodeId, channels } from '@/data/mockData';
 export type NavSection = 'chats' | 'files' | 'calls' | 'nodes' | 'settings';
 
 interface Props {
-  user: { name: string; nodeId: string; avatar: number };
+  user: { name: string; nodeId: string; avatar: number | string };
   activeSection: NavSection;
   onSectionChange: (s: NavSection) => void;
   activeDialog: string | null;
