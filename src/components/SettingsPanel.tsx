@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import GeometricAvatar from './GeometricAvatar';
+import SessionInfo from './SessionInfo';
 import { generateNodeId } from '@/data/mockData';
 import { useToast } from '@/hooks/use-toast';
 import Logo from './Logo';
 import { roadmapPhases } from '@/content/backendBlueprint';
 import { useNodeAgentHealth, useNodeAgentIdentity, useNodeAgentPresence, useNodeAgentProtocols } from "@/hooks/useNodeAgent";
 
-type SettingsTab = 'profile' | 'network' | 'privacy' | 'audio' | 'interface' | 'about';
+type SettingsTab = 'profile' | 'network' | 'sessions' | 'privacy' | 'audio' | 'interface' | 'about';
 
 interface Props {
   user: { name: string; nodeId: string; avatar: number };
@@ -20,6 +21,7 @@ interface Props {
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: 'profile', label: 'Профиль' },
   { id: 'network', label: 'Сеть' },
+  { id: 'sessions', label: 'Сессии' },
   { id: 'privacy', label: 'Приватность' },
   { id: 'audio', label: 'Аудио и видео' },
   { id: 'interface', label: 'Интерфейс' },
@@ -184,6 +186,13 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
                 {health.data?.ok ? `uptime: ${health.data.uptime}` : "запусти node-agent: cd node-agent && go run ."}
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'sessions' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Сессии и терминалы</h3>
+            <SessionInfo />
           </div>
         )}
 

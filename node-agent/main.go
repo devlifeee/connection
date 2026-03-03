@@ -27,6 +27,7 @@ func main() {
 	flag.StringVar(&cfg.ServiceName, "service", cfg.ServiceName, "")
 	flag.IntVar(&cfg.ListenPort, "p2p-port", cfg.ListenPort, "")
 	flag.StringVar(&cfg.HTTPAddr, "http", cfg.HTTPAddr, "")
+	flag.StringVar(&cfg.DatabaseURL, "db", cfg.DatabaseURL, "Postgres connection string")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

@@ -10,6 +10,7 @@ import SettingsPanel from '@/components/SettingsPanel';
 import NodeInfoPanel from '@/components/NodeInfoPanel';
 import MobileNav from '@/components/MobileNav';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useSession } from '@/hooks/useSession';
 
 interface UserData {
   name: string;
@@ -21,6 +22,7 @@ type AppState = 'loading' | 'registration' | 'main';
 
 const Index = () => {
   const isMobile = useIsMobile();
+  const { sessionState } = useSession();
   const [appState, setAppState] = useState<AppState>('loading');
   const [user, setUser] = useState<UserData | null>(null);
   const [activeSection, setActiveSection] = useState<NavSection>('chats');
