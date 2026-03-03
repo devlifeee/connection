@@ -7,7 +7,7 @@ import { useNodeAgentPeers, useNodeAgentPresencePeers } from "@/hooks/useNodeAge
 
 interface Props {
   onChatWith: (nodeId: string) => void;
-  userAvatar: number;
+  userAvatar: number | string;
 }
 
 const NodesPanel = ({ onChatWith, userAvatar }: Props) => {
@@ -150,9 +150,9 @@ const NodesPanel = ({ onChatWith, userAvatar }: Props) => {
           ))}
           {/* Center node (me) */}
           <g>
-            <circle cx={centerX} cy={centerY} r="20" fill="hsl(217, 89%, 63%)" opacity="0.15" />
-            <circle cx={centerX} cy={centerY} r="12" fill="hsl(217, 89%, 63%)" />
-            <text x={centerX} y={centerY + 30} textAnchor="middle" fill="hsl(0, 0%, 87.8%)" fontSize="10">Вы</text>
+            <circle cx={centerX} cy={centerY} r="20" fill="hsl(var(--primary))" opacity="0.15" />
+            <circle cx={centerX} cy={centerY} r="12" fill="hsl(var(--primary))" />
+            <text x={centerX} y={centerY + 30} textAnchor="middle" fill="hsl(var(--foreground))" fontSize="10">Вы</text>
           </g>
           {/* Other nodes */}
           {nodePositions.map((pos, i) => (
@@ -162,18 +162,18 @@ const NodesPanel = ({ onChatWith, userAvatar }: Props) => {
               className="cursor-pointer"
             >
               <circle cx={pos.x} cy={pos.y} r="10"
-                fill={nodes[i].online ? 'hsl(217, 89%, 63%)' : 'hsl(0, 0%, 25%)'}
+                fill={nodes[i].online ? 'hsl(var(--primary))' : 'hsl(var(--muted))'}
                 opacity={nodes[i].online ? 0.8 : 0.4}
               />
-              <text x={pos.x} y={pos.y + 22} textAnchor="middle" fill="hsl(0, 0%, 60%)" fontSize="9">
+              <text x={pos.x} y={pos.y + 22} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize="9">
                 {nodes[i].name.split(' ')[0]}
               </text>
               {hoveredNode === nodes[i].nodeId && (
                 <g>
-                  <rect x={pos.x - 60} y={pos.y - 50} width="120" height="35" rx="4" fill="hsl(0, 0%, 8.6%)" stroke="hsl(0, 0%, 12.2%)" />
-                  <text x={pos.x} y={pos.y - 37} textAnchor="middle" fill="hsl(0, 0%, 87.8%)" fontSize="9">{nodes[i].name}</text>
-                  <text x={pos.x} y={pos.y - 25} textAnchor="middle" fill="hsl(217, 89%, 63%)" fontSize="8" fontFamily="JetBrains Mono">{nodes[i].nodeId}</text>
-                  <text x={pos.x} y={pos.y - 15} textAnchor="middle" fill="hsl(0, 0%, 40%)" fontSize="8">{nodes[i].latency} мс</text>
+                  <rect x={pos.x - 60} y={pos.y - 50} width="120" height="35" rx="4" fill="hsl(var(--popover))" stroke="hsl(var(--border))" />
+                  <text x={pos.x} y={pos.y - 37} textAnchor="middle" fill="hsl(var(--foreground))" fontSize="9">{nodes[i].name}</text>
+                  <text x={pos.x} y={pos.y - 25} textAnchor="middle" fill="hsl(var(--primary))" fontSize="8" fontFamily="JetBrains Mono">{nodes[i].nodeId}</text>
+                  <text x={pos.x} y={pos.y - 15} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize="8">{nodes[i].latency} мс</text>
                 </g>
               )}
             </g>

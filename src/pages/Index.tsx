@@ -15,7 +15,7 @@ import { useSession } from '@/hooks/useSession';
 interface UserData {
   name: string;
   nodeId: string;
-  avatar: number;
+  avatar: number | string;
 }
 
 type AppState = 'loading' | 'registration' | 'main';

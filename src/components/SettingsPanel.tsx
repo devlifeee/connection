@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock, AlertTriangle, RefreshCw, Copy } from 'lucide-react';
+import { Lock, AlertTriangle, RefreshCw, Copy, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -14,8 +14,8 @@ import { useNodeAgentHealth, useNodeAgentIdentity, useNodeAgentPresence, useNode
 type SettingsTab = 'profile' | 'network' | 'sessions' | 'privacy' | 'audio' | 'interface' | 'about';
 
 interface Props {
-  user: { name: string; nodeId: string; avatar: number };
-  onUpdateUser: (data: Partial<{ name: string; nodeId: string; avatar: number }>) => void;
+  user: { name: string; nodeId: string; avatar: number | string };
+  onUpdateUser: (data: Partial<{ name: string; nodeId: string; avatar: number | string }>) => void;
 }
 
 const tabs: { id: SettingsTab; label: string }[] = [
@@ -95,11 +95,39 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
             <h3 className="text-lg font-semibold">Профиль</h3>
             <div className="flex items-center gap-4 mb-4">
               <GeometricAvatar index={user.avatar} size={64} />
-              <div className="flex gap-2">
-                {[0, 1, 2, 3, 4, 5].map(i => (
-                  <GeometricAvatar key={i} index={i} size={32} selected={user.avatar === i}
-                    onClick={() => onUpdateUser({ avatar: i })} />
-                ))}
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  {[0, 1, 2, 3, 4, 5].map(i => (
+                    <GeometricAvatar key={i} index={i} size={32} selected={user.avatar === i}
+                      onClick={() => onUpdateUser({ avatar: i })} />
+                  ))}
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      id="settings-avatar-upload"
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            onUpdateUser({ avatar: reader.result as string });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8 rounded-full"
+                      onClick={() => document.getElementById('settings-avatar-upload')?.click()}
+                    >
+                      <Upload size={14} />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
             <div>
