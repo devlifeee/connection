@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock, AlertTriangle, RefreshCw, Copy, Upload } from 'lucide-react';
+import { Lock, AlertTriangle, RefreshCw, Copy, Upload, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import Logo from './Logo';
 import { roadmapPhases } from '@/content/backendBlueprint';
 import { useNodeAgentHealth, useNodeAgentIdentity, useNodeAgentPresence, useNodeAgentProtocols } from "@/hooks/useNodeAgent";
+import { useTheme } from '@/hooks/useTheme';
 
 type SettingsTab = 'profile' | 'network' | 'sessions' | 'privacy' | 'audio' | 'interface' | 'about';
 
@@ -36,6 +37,7 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
   const identity = useNodeAgentIdentity();
   const presence = useNodeAgentPresence();
   const protocols = useNodeAgentProtocols();
+  const { theme, toggleTheme } = useTheme();
 
   // Settings state
   const [mdns, setMdns] = useState(true);
@@ -279,9 +281,24 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
         {activeTab === 'interface' && (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Интерфейс</h3>
-            <SettingToggle label="Компактный вид" checked={compactView} onChange={setCompactView} />
-            <SettingToggle label="Показывать ID в чате" checked={showIdInChat} onChange={setShowIdInChat} />
-            <SettingToggle label="Анимация сети" checked={networkAnimation} onChange={setNetworkAnimation} />
+            
+            <div className="flex items-center justify-between p-4 rounded-lg border bg-card/50">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                    {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
+                    <span className="text-sm font-medium">Темная тема</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Переключение между светлым и темным оформлением
+                </p>
+              </div>
+              <Switch checked={theme === 'dark'} onCheckedChange={toggleTheme} />
+            </div>
+
+            <SettingToggle label="Компактный вид списка чатов" checked={compactView} onChange={setCompactView} />
+            <SettingToggle label="Показывать ID собеседника" checked={showIdInChat} onChange={setShowIdInChat} />
+            <SettingToggle label="Анимации сети" checked={networkAnimation} onChange={setNetworkAnimation} />
+            
             <div>
               <label className="text-xs text-muted-foreground mb-2 block">Размер шрифта</label>
               <div className="flex gap-2">

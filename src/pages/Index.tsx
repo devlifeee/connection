@@ -72,6 +72,12 @@ const Index = () => {
     if (isMobile) setShowMobileChat(true);
   }, [isMobile]);
 
+  const handleLogout = useCallback(() => {
+    setUser(null);
+    localStorage.removeItem('svyaz-user');
+    setAppState('registration');
+  }, []);
+
   if (appState === 'loading') {
     return <LoadingScreen onComplete={handleLoadingComplete} />;
   }
@@ -119,6 +125,7 @@ const Index = () => {
         onSectionChange={setActiveSection}
         activeDialog={activeDialog}
         onDialogSelect={handleDialogSelect}
+        onLogout={handleLogout}
       />
       <div className="flex-1 flex flex-col min-w-0">
         {renderMainContent()}

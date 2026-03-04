@@ -5,6 +5,7 @@ import GeometricAvatar from './GeometricAvatar';
 import { generateNodeId } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useTheme } from '@/hooks/useTheme';
 
 interface Props {
   onRegister: (data: { name: string; nodeId: string; avatar: number | string }) => void;
@@ -16,32 +17,12 @@ const RegistrationScreen = ({ onRegister }: Props) => {
   const [avatar, setAvatar] = useState<number | string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isDarkMode, setIsDarkMode] = useState(true);
-
-  // Initialize theme
-  useEffect(() => {
-    // Check system preference or default to dark
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-      setIsDarkMode(false);
-      document.documentElement.classList.remove('dark');
-    } else {
-      setIsDarkMode(true);
-      document.documentElement.classList.add('dark');
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-    if (!isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  };
+  const { theme, toggleTheme } = useTheme();
+  const isDarkMode = theme === 'dark';
 
   const handleSubmit = () => {
     if (!name.trim()) return;
-    onRegister({ name: name.trim(), nodeId, avatar: avatar || 0 });
+    onRegister({ name: name.trim(), nodeId, avatar: avatar ?? 0 });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,50 +89,65 @@ const RegistrationScreen = ({ onRegister }: Props) => {
         </div>
 
         {/* Avatar Section */}
-        <div className="relative group my-2">
-          <div 
-            className={`relative w-[120px] h-[120px] rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.15)] flex items-center justify-center overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.03] border ${
-              isDarkMode 
-                ? 'bg-gradient-to-b from-[#2c2c2e] to-[#1c1c1e] border-white/10 group-hover:border-blue-500/30' 
-                : 'bg-gradient-to-b from-white to-gray-50 border-white/80 group-hover:border-blue-400/50'
-            }`}
-            onClick={() => fileInputRef.current?.click()}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-          >
-            {avatar ? (
-               <GeometricAvatar
-                index={avatar}
-                size={120}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <User size={52} className={isDarkMode ? 'text-white/20' : 'text-gray-300'} strokeWidth={1.5} />
-            )}
+        <div className="flex flex-col items-center gap-4 w-full">
+            <div className="relative group">
+            <div 
+                className={`relative w-[120px] h-[120px] rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.15)] flex items-center justify-center overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.03] border ${
+                isDarkMode 
+                    ? 'bg-gradient-to-b from-[#2c2c2e] to-[#1c1c1e] border-white/10 group-hover:border-blue-500/30' 
+                    : 'bg-gradient-to-b from-white to-gray-50 border-white/80 group-hover:border-blue-400/50'
+                }`}
+                onClick={() => fileInputRef.current?.click()}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+            >
+                {avatar !== null ? (
+                <GeometricAvatar
+                    index={avatar}
+                    size={120}
+                    className="w-full h-full object-cover"
+                />
+                ) : (
+                <User size={52} className={isDarkMode ? 'text-white/20' : 'text-gray-300'} strokeWidth={1.5} />
+                )}
+                
+                {/* iOS-style overlay */}
+                <div className={`absolute inset-0 bg-black/40 backdrop-blur-[3px] flex flex-col items-center justify-center transition-all duration-300 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+                <Upload size={28} className="text-white mb-1.5 drop-shadow-md" strokeWidth={2} />
+                <span className="text-[11px] font-semibold text-white tracking-widest drop-shadow-md">ИЗМЕНИТЬ</span>
+                </div>
+            </div>
             
-            {/* iOS-style overlay */}
-            <div className={`absolute inset-0 bg-black/40 backdrop-blur-[3px] flex flex-col items-center justify-center transition-all duration-300 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
-              <Upload size={28} className="text-white mb-1.5 drop-shadow-md" strokeWidth={2} />
-              <span className="text-[11px] font-semibold text-white tracking-widest drop-shadow-md">ИЗМЕНИТЬ</span>
-            </div>
-          </div>
-          
-          {/* Status Badge */}
-          {name.trim() && (
-             <div className={`absolute bottom-1 right-1 rounded-full p-[4px] shadow-lg animate-in fade-in zoom-in duration-300 ${isDarkMode ? 'bg-[#1c1c1e]' : 'bg-white'}`}>
-              <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center shadow-[0_0_12px_rgba(59,130,246,0.5)]">
-                <ShieldCheck size={14} className="text-white" strokeWidth={3} />
-              </div>
-            </div>
-          )}
+            {/* Status Badge */}
+            {name.trim() && (
+                <div className={`absolute bottom-1 right-1 rounded-full p-[4px] shadow-lg animate-in fade-in zoom-in duration-300 ${isDarkMode ? 'bg-[#1c1c1e]' : 'bg-white'}`}>
+                <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center shadow-[0_0_12px_rgba(59,130,246,0.5)]">
+                    <ShieldCheck size={14} className="text-white" strokeWidth={3} />
+                </div>
+                </div>
+            )}
 
-          <input 
-            type="file" 
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            className="hidden" 
-            accept="image/*"
-          />
+            <input 
+                type="file" 
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden" 
+                accept="image/*"
+            />
+            </div>
+
+            {/* Geometric Avatars Selection */}
+            <div className="flex gap-2 justify-center flex-wrap px-4">
+                {[0, 1, 2, 3, 4].map(i => (
+                    <div 
+                        key={i} 
+                        onClick={() => setAvatar(i)}
+                        className={`cursor-pointer transition-all duration-300 hover:scale-110 ${avatar === i ? 'ring-2 ring-blue-500 rounded-lg scale-110' : 'opacity-70 hover:opacity-100'}`}
+                    >
+                        <GeometricAvatar index={i} size={40} />
+                    </div>
+                ))}
+            </div>
         </div>
 
         {/* Form Fields */}
