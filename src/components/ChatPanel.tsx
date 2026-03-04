@@ -81,7 +81,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
   return (
     <div className="flex-1 flex flex-col h-full min-w-0 bg-background/50 dark:bg-black/40 backdrop-blur-3xl relative">
       {/* Header */}
-      <div className="h-16 px-6 flex items-center justify-between shrink-0 bg-background/60 dark:bg-[#0a0b10]/80 backdrop-blur-xl sticky top-0 z-20 border-b border-border/40 shadow-sm">
+      <div className="h-16 px-6 flex items-center justify-between shrink-0 bg-background/60 dark:bg-card/80 backdrop-blur-xl sticky top-0 z-20 border-b border-border/40 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="relative">
              <GeometricAvatar index={node.avatar} size={44} />
@@ -92,17 +92,17 @@ const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
           <div>
             <p className="text-base font-bold leading-none tracking-tight">{node.name}</p>
             {node.online ? (
-              <p className="text-xs text-primary mt-1 font-medium bg-primary/10 px-2 py-0.5 rounded-full inline-block glow-text-blue">Online</p>
+              <p className="text-xs mt-1 font-medium bg-secondary/40 px-2 py-0.5 rounded-full inline-block text-green-500/80">Online</p>
             ) : (
               <p className="text-xs text-muted-foreground mt-1 font-medium">Offline</p>
             )}
           </div>
         </div>
         <div className="flex items-center gap-4 text-muted-foreground">
-          <button className="p-2 hover:bg-secondary/50 rounded-full transition-all hover:text-primary hover:glow-text-blue">
+          <button className="p-2 hover:bg-secondary/50 rounded-full transition-all">
              <Phone size={20} strokeWidth={2} />
           </button>
-          <button className="p-2 hover:bg-secondary/50 rounded-full transition-all hover:text-primary hover:glow-text-blue">
+          <button className="p-2 hover:bg-secondary/50 rounded-full transition-all">
              <Video size={20} strokeWidth={2} />
           </button>
           <button className="p-2 hover:bg-secondary/50 rounded-full transition-all hover:text-foreground">
@@ -121,7 +121,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
           return (
             <div key={env.id} className="flex justify-start group items-end gap-2">
                <GeometricAvatar index={node.avatar} size={28} className="mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="max-w-[70%] px-5 py-3.5 rounded-2xl rounded-bl-none bg-secondary/80 dark:bg-[#1a1b20]/90 backdrop-blur-sm text-sm shadow-sm hover:shadow-md transition-shadow border border-white/5">
+              <div className="max-w-[70%] px-5 py-3.5 rounded-2xl rounded-bl-none bg-secondary/80 dark:bg-[#1B1F26]/90 backdrop-blur-sm text-sm shadow-sm hover:shadow-md transition-shadow border border-border/40">
                 <p className="leading-relaxed text-foreground/90">{txt}</p>
                 <div className="flex items-center gap-1 mt-1 opacity-50 text-[10px] select-none">
                   <span>{time}</span>
@@ -153,8 +153,8 @@ const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
                )}
               <div className={`max-w-[70%] px-5 py-3.5 rounded-2xl text-sm shadow-sm hover:shadow-md transition-all duration-200 ${
                 isMe 
-                  ? 'bg-primary text-primary-foreground rounded-br-none shadow-lg shadow-primary/20 glow-blue border border-primary/20' 
-                  : 'bg-white dark:bg-[#1a1b20]/90 text-foreground rounded-bl-none border border-border/50'
+                  ? 'bg-[#1B1F26] text-foreground rounded-br-none border border-border/40' 
+                  : 'bg-white dark:bg-[#1B1F26]/90 text-foreground rounded-bl-none border border-border/50'
               }`}>
                 {msg.type === 'file' ? (
                   <div className="flex items-center gap-3">
@@ -195,7 +195,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
         {showScroll && (
           <button
             onClick={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' })}
-            className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground rounded-full px-4 py-2 flex items-center gap-2 text-xs font-bold shadow-xl hover:scale-105 transition-all z-20 glow-blue"
+            className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-secondary/60 text-foreground rounded-full px-4 py-2 flex items-center gap-2 text-xs font-bold shadow-xl hover:scale-105 transition-all z-20"
           >
             <ChevronDown size={14} strokeWidth={3} />
             <span>Вниз</span>
@@ -205,7 +205,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
 
       {/* Input */}
       <div className="p-6 sticky bottom-0 z-20 bg-gradient-to-t from-background via-background/90 to-transparent pb-8">
-        <div className="flex items-end gap-3 max-w-4xl mx-auto bg-background/80 dark:bg-[#0a0b10]/80 backdrop-blur-2xl border border-black/5 dark:border-primary/20 p-2 rounded-[24px] shadow-2xl shadow-black/10 dark:shadow-primary/5 ring-1 ring-black/5 dark:ring-primary/10 border-glow">
+        <div className="flex items-end gap-3 max-w-4xl mx-auto bg-background/80 dark:bg-card/80 backdrop-blur-2xl border border-border/40 p-2 rounded-[24px] shadow-2xl ring-1 ring-border">
           <button className="p-3 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-all duration-300">
             <Paperclip size={22} strokeWidth={2} />
           </button>
@@ -228,7 +228,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
               onClick={sendMessage}
               className={`p-3 rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 ${
                 input.trim() 
-                  ? 'bg-primary text-white shadow-lg shadow-primary/30 glow-blue' 
+                  ? 'bg-secondary/60 text-foreground' 
                   : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
               }`}
             >
@@ -237,6 +237,8 @@ const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
           </div>
         </div>
       </div>
+    </div>
+  );
 };
 
 function MessageSquareEmpty() {

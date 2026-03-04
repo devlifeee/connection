@@ -28,38 +28,25 @@
         --surface: 0 0% 100%;
     }
     .dark {
-        /* OLED Black Theme */
-        --background: 0 0% 0%; /* Pure Black */
-        --foreground: 0 0% 88%; /* Off-white #E0E0E0 */
-        
-        /* Cards: Deep Anthracite #080808 / #0A0B10 */
-        --card: 228 6% 4%; 
-        --card-foreground: 0 0% 88%;
-        
-        --popover: 228 6% 4%;
-        --popover-foreground: 0 0% 88%;
-        
-        /* Electric Blue: Vibrant neon blue */
-        --primary: 215 100% 55%; 
-        --primary-foreground: 0 0% 100%;
-        
-        /* Separators/Secondary: Very subtle */
-        --secondary: 228 6% 8%;
-        --secondary-foreground: 0 0% 88%;
-        
-        --muted: 228 6% 8%;
-        --muted-foreground: 0 0% 63%; /* #A0A0A0 */
-        
-        --accent: 215 100% 55%;
-        --accent-foreground: 0 0% 100%;
-        
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 210 40% 98%;
-        
-        /* Borders: Almost invisible or very subtle dark */
-        --border: 228 6% 10%;
-        --input: 228 6% 10%;
-        --ring: 215 100% 55%;
+        --background: 215 16% 7%;
+        --foreground: 210 13% 92%;
+        --card: 215 14% 9%;
+        --card-foreground: 210 13% 92%;
+        --popover: 215 14% 9%;
+        --popover-foreground: 210 13% 92%;
+        --primary: 220 12% 58%;
+        --primary-foreground: 215 20% 12%;
+        --secondary: 215 12% 11%;
+        --secondary-foreground: 210 13% 92%;
+        --muted: 215 12% 11%;
+        --muted-foreground: 210 10% 65%;
+        --accent: 220 12% 58%;
+        --accent-foreground: 210 13% 92%;
+        --destructive: 0 60% 40%;
+        --destructive-foreground: 210 13% 92%;
+        --border: 215 10% 20%;
+        --input: 215 10% 20%;
+        --ring: 220 12% 58%;
     }
 }
 
@@ -112,15 +99,9 @@
     }
     
     /* Neon Glow Utilities */
-    .glow-blue {
-        box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
-    }
-    .glow-text-blue {
-        text-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
-    }
-    .border-glow {
-        box-shadow: 0 0 5px rgba(59, 130, 246, 0.3), inset 0 0 5px rgba(59, 130, 246, 0.1);
-    }
+    .glow-blue {}
+    .glow-text-blue {}
+    .border-glow {}
 }
 
 @keyframes pulse-dot {

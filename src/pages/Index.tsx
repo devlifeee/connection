@@ -82,10 +82,6 @@ const Index = () => {
     return <LoadingScreen onComplete={handleLoadingComplete} />;
   }
 
-  if (appState === 'registration' || !user) {
-    return <RegistrationScreen onRegister={handleRegister} />;
-  }
-
   const renderMainContent = () => {
     switch (activeSection) {
       case 'chats':
@@ -95,15 +91,14 @@ const Index = () => {
       case 'calls':
         return <CallsPanel />;
       case 'nodes':
-        return <NodesPanel onChatWith={handleChatWith} userAvatar={user.avatar} />;
+        return <NodesPanel onChatWith={handleChatWith} userAvatar={user!.avatar} />;
       case 'settings':
-        return <SettingsPanel user={user} onUpdateUser={handleUpdateUser} />;
+        return <SettingsPanel user={user!} onUpdateUser={handleUpdateUser} />;
       default:
         return null;
     }
   };
 
-  // Mobile layout
   if (isMobile) {
     return (
       <div className="h-[100dvh] flex flex-col bg-background">
@@ -116,11 +111,10 @@ const Index = () => {
     );
   }
 
-  // Desktop layout
   return (
     <div className="h-screen flex bg-background overflow-hidden">
       <Sidebar
-        user={user}
+        user={user!}
         activeSection={activeSection}
         onSectionChange={setActiveSection}
         activeDialog={activeDialog}

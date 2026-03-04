@@ -38,45 +38,36 @@ const GeometricAvatar = ({ index, size = 40, selected = false, onClick, classNam
       height={size}
       viewBox="0 0 100 100"
       onClick={onClick}
-      className={`cursor-pointer transition-all drop-shadow-md hover:drop-shadow-lg ${selected ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''} ${className}`}
-      style={{ filter: 'drop-shadow(0 0 8px rgba(37, 99, 235, 0.6))' }}
+      className={`cursor-pointer transition-all ${selected ? 'ring-2 ring-border ring-offset-2 ring-offset-background' : ''} ${className}`}
     >
       <defs>
         <linearGradient id="hexGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#1d4ed8" /> {/* Deep Blue */}
-          <stop offset="100%" stopColor="#06b6d4" /> {/* Cyan/Turquoise */}
+          <stop offset="0%" stopColor="#1B1F26" />
+          <stop offset="100%" stopColor="#15181D" />
         </linearGradient>
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="3.5" result="coloredBlur"/>
-          <feMerge>
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
       </defs>
       
       {/* Background Hexagon with Gradient and Stroke */}
       <path 
         d={hexPath} 
         fill="url(#hexGradient)" 
-        stroke="rgba(255,255,255,0.1)" 
-        strokeWidth="1.5"
+        stroke="rgba(255,255,255,0.06)" 
+        strokeWidth="1"
       />
       
       {/* Inner Shape */}
       <path 
         d={avatarShapes[safeIndex]} 
-        fill="white" 
-        opacity="0.95" 
+        fill="rgba(230,232,235,0.9)" 
+        opacity="0.9" 
         transform="scale(0.65) translate(26, 26)"
-        style={{ filter: 'drop-shadow(0 0 5px rgba(255,255,255,0.5))' }}
       />
       
       {/* Shine effect */}
       <path
         d="M50 0 L93.3 25 L50 40 L6.7 25 Z"
-        fill="white"
-        opacity="0.15"
+        fill="rgba(255,255,255,0.05)"
+        opacity="1"
       />
     </svg>
   );

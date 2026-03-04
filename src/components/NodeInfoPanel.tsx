@@ -32,7 +32,7 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
   };
 
   return (
-    <div className={`w-[350px] border-l border-white/5 bg-background/60 dark:bg-[#0a0b10]/90 backdrop-blur-xl flex flex-col h-full shadow-2xl z-10 ${className}`}>
+    <div className={`w-[350px] border-l border-white/5 bg-background/60 dark:bg-card/90 backdrop-blur-xl flex flex-col h-full shadow-2xl z-10 ${className}`}>
         <div className="p-4 flex items-center justify-between shrink-0">
             <span className="font-bold text-sm text-muted-foreground tracking-wider uppercase">Информация</span>
             <button className="p-2 hover:bg-secondary/50 rounded-full transition-colors">
@@ -43,12 +43,12 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
         <ScrollArea className="flex-1 px-5">
             <div className="pb-6 space-y-6">
                 {/* Profile Card */}
-                <div className="flex flex-col items-center bg-gradient-to-b from-secondary/30 to-background dark:from-[#1a1b20] dark:to-[#0a0b10] border border-white/10 rounded-3xl p-6 shadow-sm relative overflow-hidden group">
+                <div className="flex flex-col items-center bg-gradient-to-b from-secondary/30 to-background dark:from-[#15181D] dark:to-[#0F1115] border border-white/10 rounded-3xl p-6 shadow-sm relative overflow-hidden group">
                     <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                     <GeometricAvatar index={node.avatar} size={100} className="shadow-2xl shadow-primary/20" />
                     <div className="mt-4 text-center relative z-10">
                         <h2 className="text-xl font-bold tracking-tight">{node.name}</h2>
-                        <button onClick={copyId} className="flex items-center justify-center gap-1.5 font-mono text-xs text-primary/80 hover:text-primary hover:bg-primary/10 px-2 py-1 rounded-md transition-all mt-1 mx-auto cursor-pointer glow-text-blue">
+                        <button onClick={copyId} className="flex items-center justify-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/40 px-2 py-1 rounded-md transition-all mt-1 mx-auto cursor-pointer">
                             {node.nodeId} <Copy size={10} />
                         </button>
                         <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${node.online ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-secondary text-muted-foreground border-transparent'}`}>
@@ -116,7 +116,7 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
                         <div className="h-px bg-border/40" />
                         <button onClick={copyFingerprint} className="w-full flex items-center justify-between group">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-primary/10 rounded-xl text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors glow-blue">
+                                <div className="p-2 bg-secondary/40 rounded-xl text-muted-foreground group-hover:bg-secondary group-hover:text-foreground transition-colors">
                                     <Key size={18} />
                                 </div>
                                 <div className="text-left">
