@@ -65,24 +65,24 @@ const RegistrationScreen = ({ onRegister }: Props) => {
         {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
       </button>
 
-      <div className={`w-full max-w-[420px] sm:max-w-[520px] md:max-w-[640px] relative z-10 backdrop-blur-2xl border rounded-[24px] md:rounded-[32px] p-6 sm:p-8 md:p-10 flex flex-col items-center gap-6 sm:gap-8 transition-all duration-500 ease-out ${
+      <div className={`w-full max-w-[360px] relative z-10 backdrop-blur-2xl border rounded-[20px] p-5 flex flex-col items-center gap-5 transition-all duration-500 ease-out ${
         isDarkMode 
           ? 'bg-[#1c1c1e]/60 border-white/5 shadow-[0_40px_80px_-12px_rgba(0,0,0,0.5)]' 
           : 'bg-white/70 border-white/40 shadow-[0_20px_60px_rgba(0,0,0,0.08)]'
       }`}>
         
         {/* Header */}
-        <div className="flex flex-col items-center gap-5 sm:gap-6 w-full">
+        <div className="flex flex-col items-center gap-6 w-full">
           <div className="relative group cursor-default">
             <div className={`absolute inset-0 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700 ${isDarkMode ? 'bg-blue-500/30' : 'bg-blue-400/20'}`} />
-            <Logo size={80} className="relative drop-shadow-2xl transition-transform duration-500 group-hover:scale-105 rounded-2xl" />
+            <Logo size={72} className="relative drop-shadow-2xl transition-transform duration-500 group-hover:scale-105 rounded-2xl" />
           </div>
           
           <div className="text-center space-y-2">
-            <h1 className={`text-3xl font-bold tracking-tight font-sans ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            <h1 className={`text-2xl font-bold tracking-tight font-sans ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
               hex p2p
             </h1>
-            <p className={`text-[15px] font-normal tracking-wide text-center max-w-[280px] leading-relaxed ${isDarkMode ? 'text-blue-200/60' : 'text-gray-500'}`}>
+            <p className={`text-[14px] font-normal tracking-wide text-center max-w-[240px] leading-relaxed ${isDarkMode ? 'text-blue-200/60' : 'text-gray-500'}`}>
               Децентрализованная связь. <br/>Без серверов. Без интернета.
             </p>
           </div>
@@ -92,7 +92,7 @@ const RegistrationScreen = ({ onRegister }: Props) => {
         <div className="flex flex-col items-center gap-4 w-full">
             <div className="relative group">
             <div 
-                className={`relative w-[110px] h-[110px] sm:w-[120px] sm:h-[120px] md:w-[140px] md:h-[140px] rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.15)] flex items-center justify-center overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.03] border ${
+                className={`relative w-[96px] h-[96px] rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.15)] flex items-center justify-center overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.03] border ${
                 isDarkMode 
                     ? 'bg-gradient-to-b from-[#2c2c2e] to-[#1c1c1e] border-white/10 group-hover:border-blue-500/30' 
                     : 'bg-gradient-to-b from-white to-gray-50 border-white/80 group-hover:border-blue-400/50'
@@ -104,7 +104,7 @@ const RegistrationScreen = ({ onRegister }: Props) => {
                 {avatar !== null ? (
                 <GeometricAvatar
                     index={avatar}
-                    size={128}
+                    size={96}
                     className="w-full h-full object-cover"
                 />
                 ) : (
@@ -137,28 +137,28 @@ const RegistrationScreen = ({ onRegister }: Props) => {
             </div>
 
             {/* Geometric Avatars Selection */}
-            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 sm:gap-3 justify-center px-2 sm:px-4">
+            <div className="grid grid-cols-5 gap-2 justify-center px-2">
                 {[0, 1, 2, 3, 4].map(i => (
                     <div 
                         key={i} 
                         onClick={() => setAvatar(i)}
                         className={`cursor-pointer transition-all duration-300 hover:scale-110 ${avatar === i ? 'ring-2 ring-blue-500 rounded-lg scale-110' : 'opacity-70 hover:opacity-100'}`}
                     >
-                        <GeometricAvatar index={i} size={40} />
+                        <GeometricAvatar index={i} size={36} />
                     </div>
                 ))}
             </div>
         </div>
 
         {/* Form Fields */}
-        <div className="w-full space-y-4 sm:space-y-5 md:space-y-6">
+        <div className="w-full space-y-4">
           <div className="space-y-1.5">
             <Input
               placeholder="Введите имя"
               value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-              className={`h-12 sm:h-[56px] md:h-[60px] border rounded-2xl text-[15px] sm:text-[17px] md:text-[18px] px-5 sm:px-6 font-medium transition-all duration-200 text-center tracking-wide focus:ring-[4px] ${
+              className={`h-11 border rounded-2xl text-[15px] px-4 font-medium transition-all duration-200 text-center tracking-wide focus:ring-[3px] ${
                 isDarkMode 
                   ? 'bg-black/20 border-white/10 hover:border-white/20 focus:border-blue-500 focus:bg-black/30 focus:ring-blue-500/10 text-white shadow-inner placeholder:text-white/20' 
                   : 'bg-white border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:bg-white focus:ring-blue-500/15 text-gray-900 shadow-sm placeholder:text-gray-400'
@@ -174,7 +174,7 @@ const RegistrationScreen = ({ onRegister }: Props) => {
             }`}>
               <div className="flex-1 flex flex-col min-w-0 mr-3 text-center sm:text-left">
                 <span className={`text-[10px] uppercase tracking-widest font-bold mb-1 ${isDarkMode ? 'text-blue-300/40' : 'text-blue-600/60'}`}>Secure Token ID</span>
-                <span className={`font-mono text-[14px] sm:text-[15px] md:text-[16px] tracking-tight truncate select-all font-medium ${isDarkMode ? 'text-white/90' : 'text-gray-800'}`}>
+                <span className={`font-mono text-[14px] tracking-tight truncate select-all font-medium ${isDarkMode ? 'text-white/90' : 'text-gray-800'}`}>
                   {nodeId}
                 </span>
               </div>
@@ -194,11 +194,11 @@ const RegistrationScreen = ({ onRegister }: Props) => {
         </div>
 
         {/* Actions */}
-        <div className="w-full space-y-5 sm:space-y-6 mt-3 sm:mt-4">
+        <div className="w-full space-y-4 mt-2">
           <Button
             onClick={handleSubmit}
             disabled={!name.trim()}
-            className={`w-full h-12 sm:h-[56px] md:h-[60px] text-[16px] sm:text-[18px] font-bold tracking-wide rounded-[22px] sm:rounded-[26px] active:scale-[0.98] transition-all duration-300 hover:brightness-110 disabled:opacity-30 disabled:shadow-none disabled:cursor-not-allowed ${
+            className={`w-full h-[48px] text-[15px] font-bold tracking-wide rounded-[20px] active:scale-[0.98] transition-all duration-300 hover:brightness-110 disabled:opacity-30 disabled:shadow-none disabled:cursor-not-allowed ${
               isDarkMode 
                 ? 'shadow-[0_8px_40px_-8px_rgba(0,122,255,0.4)] hover:shadow-[0_12px_50px_-8px_rgba(0,122,255,0.6)] bg-gradient-to-r from-[#007AFF] to-[#0A84FF] border-t border-white/10' 
                 : 'shadow-[0_12px_30px_rgba(0,122,255,0.25)] hover:shadow-[0_15px_35px_rgba(0,122,255,0.35)] bg-gradient-to-r from-[#007AFF] to-[#0062CC]'

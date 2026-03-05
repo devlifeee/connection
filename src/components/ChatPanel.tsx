@@ -10,9 +10,10 @@ import { useChatHistory, useNodeAgentPresencePeers, useSendChatMessage } from "@
 interface Props {
   dialogNodeId: string | null;
   onSelectNode: (nodeId: string) => void;
+  onToggleInfoPanel?: () => void;
 }
 
-const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
+const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel }: Props) => {
   const node = dialogNodeId ? getNodeByNodeId(dialogNodeId) : null;
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -105,8 +106,8 @@ const ChatPanel = ({ dialogNodeId, onSelectNode }: Props) => {
           <button className="p-2 hover:bg-secondary/50 rounded-full transition-all">
              <Video size={20} strokeWidth={2} />
           </button>
-          <button className="p-2 hover:bg-secondary/50 rounded-full transition-all hover:text-foreground">
-             <MoreVertical size={20} strokeWidth={2} />
+          <button className="p-2 hover:bg-secondary/50 rounded-full transition-all hover:text-foreground" onClick={() => onToggleInfoPanel?.()}>
+            <MoreVertical size={20} strokeWidth={2} />
           </button>
         </div>
       </div>

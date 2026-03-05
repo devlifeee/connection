@@ -35,9 +35,7 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
     <div className={`w-[350px] border-l border-white/5 bg-background/60 dark:bg-card/90 backdrop-blur-xl flex flex-col h-full shadow-2xl z-10 ${className}`}>
         <div className="p-4 flex items-center justify-between shrink-0">
             <span className="font-bold text-sm text-muted-foreground tracking-wider uppercase">Информация</span>
-            <button className="p-2 hover:bg-secondary/50 rounded-full transition-colors">
-                <MoreHorizontal size={20} className="text-muted-foreground hover:text-foreground" />
-            </button>
+            
         </div>
         
         <ScrollArea className="flex-1 px-5">

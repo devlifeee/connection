@@ -33,7 +33,7 @@ const Sidebar = ({ user, activeSection, onSectionChange, activeDialog, onDialogS
           <img src="src/assets/logo.png" alt="logo" className="w-9 h-9 relative z-10 rounded-xl shadow-sm"/>
         </div>
         <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-          HEX MVP
+          СВЯЗЬ
         </span>
       </div>
 

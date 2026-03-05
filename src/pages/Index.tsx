@@ -29,6 +29,7 @@ const Index = () => {
   const [activeDialog, setActiveDialog] = useState<string | null>('УЗЛ-4a7c1f9e');
   const [selectedNode, setSelectedNode] = useState<string | null>('УЗЛ-4a7c1f9e');
   const [showMobileChat, setShowMobileChat] = useState(false);
+  const [showInfoPanel, setShowInfoPanel] = useState(false);
 
   // Load user from localStorage
   useEffect(() => {
@@ -85,7 +86,7 @@ const Index = () => {
   const renderMainContent = () => {
     switch (activeSection) {
       case 'chats':
-        return <ChatPanel dialogNodeId={activeDialog} onSelectNode={setSelectedNode} />;
+        return <ChatPanel dialogNodeId={activeDialog} onSelectNode={setSelectedNode} onToggleInfoPanel={() => setShowInfoPanel(v => !v)} />;
       case 'files':
         return <FilesPanel />;
       case 'calls':
@@ -121,12 +122,13 @@ const Index = () => {
         onDialogSelect={handleDialogSelect}
         onLogout={handleLogout}
       />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div
+        className="flex flex-col min-w-0 transition-[width] duration-300 ease-out"
+        style={{ width: showInfoPanel ? 'calc(100% - 350px)' : '100%' }}
+      >
         {renderMainContent()}
       </div>
-      {activeSection === 'chats' && (
-        <NodeInfoPanel nodeId={selectedNode} />
-      )}
+      {activeSection === 'chats' && showInfoPanel && <NodeInfoPanel nodeId={selectedNode} />}
     </div>
   );
 };
