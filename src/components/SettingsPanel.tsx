@@ -339,7 +339,6 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
               <Switch checked={theme === 'dark'} onCheckedChange={toggleTheme} />
             </div>
 
-            <SettingToggle label="Компактный вид списка чатов" checked={compactView} onChange={setCompactView} />
             <SettingToggle label="Показывать ID собеседника" checked={showIdInChat} onChange={setShowIdInChat} />
             <SettingToggle label="Анимации сети" checked={networkAnimation} onChange={setNetworkAnimation} />
             
