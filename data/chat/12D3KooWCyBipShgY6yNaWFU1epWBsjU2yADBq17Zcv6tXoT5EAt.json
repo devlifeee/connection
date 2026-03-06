@@ -194,7 +194,49 @@
         "text": "1"
       },
       "signature": "D2jeXiCwwIG/VDYojGSEEh7AdhndyNZU/eDhMNFheuFeLoleJSnZ30GiaCMShmmU/WOpLW0Nv0R0y2Z4ZWEIBg=="
+    },
+    {
+      "id": "1772837785687725900",
+      "type": "chat",
+      "timestamp": 1772837785687,
+      "sender": "12D3KooWCyBipShgY6yNaWFU1epWBsjU2yADBq17Zcv6tXoT5EAt",
+      "ttl": 8,
+      "payload": {
+        "text": "в\\"
+      },
+      "signature": "ghfFltrkIbQJbW6QjA50x6PSkXdcMGElb+tlYspVi6nc3bjYiExa9dSA7XjdHZLUQTJHiAqmMH2UL6f0ku3IBA=="
+    },
+    {
+      "id": "1772837793555926600",
+      "type": "chat",
+      "timestamp": 1772837793555,
+      "sender": "12D3KooWCyBipShgY6yNaWFU1epWBsjU2yADBq17Zcv6tXoT5EAt",
+      "ttl": 8,
+      "payload": {
+        "text": "алин"
+      },
+      "signature": "bHiPmp7efkkHXyElRWP5aeupflWYxrPDE9PhikHoKXqCE2o3+rM3/colk+8GoAyVd6clRDhW0vnKuCDjrSTCCg=="
+    },
+    {
+      "id": "1772837798286875300/ack",
+      "type": "ack",
+      "timestamp": 1772837798287,
+      "sender": "12D3KooWMwshT8f4MGSJnuY6XXYTD9nqaSzGj1CpodSwV94QjNjA",
+      "ack_for": "1772837798286875300",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772837798286875300",
+      "type": "chat",
+      "timestamp": 1772837798286,
+      "sender": "12D3KooWMwshT8f4MGSJnuY6XXYTD9nqaSzGj1CpodSwV94QjNjA",
+      "ttl": 8,
+      "payload": {
+        "text": "ай"
+      },
+      "signature": "xtoPfU6gVXYxLDXsaXImfWMTzqsJ1YNSf124dkHiDn6uewLJ8uUR9QTuvCOdMMqbJWymLwHWu4QSLrB0OaIXAw=="
     }
   ],
-  "read_up_to": "1772836486586052200"
+  "read_up_to": "1772837793555926600"
 }

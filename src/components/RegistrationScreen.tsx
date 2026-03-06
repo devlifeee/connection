@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTheme } from '@/hooks/useTheme';
 
+import { useUpdatePresence } from '@/hooks/useNodeAgent';
+
 interface Props {
   onRegister: (data: { name: string; nodeId: string; avatar: number | string }) => void;
 }
@@ -19,13 +21,41 @@ const RegistrationScreen = ({ onRegister }: Props) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { theme, toggleTheme } = useTheme();
   const isDarkMode = theme === 'dark';
+  const updatePresence = useUpdatePresence();
 
   const handleSubmit = () => {
     if (!name.trim()) return;
-    onRegister({ name: name.trim(), nodeId, avatar: 0 });
+    const userData = { name: name.trim(), nodeId, avatar: avatar || 0 };
+    // Save profile to localStorage for persistence
+    localStorage.setItem('svyaz-user-profile', JSON.stringify(userData));
+    // Update presence in node-agent
+    updatePresence.mutate(name.trim());
+    onRegister(userData);
   };
 
-  const handleFileChange = (_e: React.ChangeEvent<HTMLInputElement>) => {};
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              setAvatar(reader.result as string);
+          };
+          reader.readAsDataURL(file);
+      }
+  };
+
+  // Load saved profile on mount
+  useEffect(() => {
+      try {
+          const savedProfile = localStorage.getItem('svyaz-user-profile');
+          if (savedProfile) {
+              const { name, nodeId, avatar } = JSON.parse(savedProfile);
+              if (name) setName(name);
+              if (nodeId) setNodeId(nodeId);
+              if (avatar) setAvatar(avatar);
+          }
+      } catch {}
+  }, []);
 
   return (
     <div className={`fixed inset-0 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-hidden transition-colors duration-500 min-h-[100dvh] pb-[env(safe-area-inset-bottom)] ${isDarkMode ? 'bg-[#0a0a0a] text-white' : 'bg-[#f5f5f7] text-gray-900'}`}>
@@ -81,32 +111,50 @@ const RegistrationScreen = ({ onRegister }: Props) => {
 
         {/* Avatar Section */}
         <div className="flex flex-col items-center gap-4 w-full">
-            <div className="relative group">
             <div 
-                className={`relative w-[96px] h-[96px] rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.15)] flex items-center justify-center overflow-hidden border ${
-                isDarkMode 
-                    ? 'bg-gradient-to-b from-[#2c2c2e] to-[#1c1c1e] border-white/10' 
-                    : 'bg-gradient-to-b from-white to-gray-50 border-white/80'
-                }`}
+              className="relative group cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
             >
-                <User size={52} className={isDarkMode ? 'text-white/20' : 'text-gray-300'} strokeWidth={1.5} />
-            </div>
-            {/* Status Badge */}
-            {name.trim() && (
-                <div className={`absolute bottom-1 right-1 rounded-full p-[4px] shadow-lg animate-in fade-in zoom-in duration-300 ${isDarkMode ? 'bg-[#1c1c1e]' : 'bg-white'}`}>
-                <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center shadow-[0_0_12px_rgba(59,130,246,0.5)]">
-                    <ShieldCheck size={14} className="text-white" strokeWidth={3} />
+                <div 
+                    className={`relative w-[96px] h-[96px] rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.15)] flex items-center justify-center overflow-hidden border transition-all duration-300 group-hover:scale-105 group-hover:border-blue-500/50 ${
+                    isDarkMode 
+                        ? 'bg-gradient-to-b from-[#2c2c2e] to-[#1c1c1e] border-white/10' 
+                        : 'bg-gradient-to-b from-white to-gray-50 border-white/80'
+                    }`}
+                >
+                    {avatar ? (
+                        typeof avatar === 'string' ? (
+                            <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
+                        ) : (
+                            <GeometricAvatar index={avatar} size={96} />
+                        )
+                    ) : (
+                        <User size={52} className={isDarkMode ? 'text-white/20' : 'text-gray-300'} strokeWidth={1.5} />
+                    )}
+                    
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <Upload size={24} className="text-white drop-shadow-md" />
+                    </div>
                 </div>
-                </div>
-            )}
-            <input 
-                type="file" 
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                className="hidden" 
-                accept="image/*"
-            />
+                
+                {/* Status Badge */}
+                {name.trim() && (
+                    <div className={`absolute bottom-1 right-1 rounded-full p-[4px] shadow-lg animate-in fade-in zoom-in duration-300 ${isDarkMode ? 'bg-[#1c1c1e]' : 'bg-white'}`}>
+                    <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center shadow-[0_0_12px_rgba(59,130,246,0.5)]">
+                        <ShieldCheck size={14} className="text-white" strokeWidth={3} />
+                    </div>
+                    </div>
+                )}
+                <input 
+                    type="file" 
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden" 
+                    accept="image/*"
+                />
             </div>
+            <p className={`text-xs font-medium ${isDarkMode ? 'text-white/40' : 'text-gray-400'}`}>Нажмите, чтобы загрузить фото</p>
         </div>
 
         {/* Form Fields */}

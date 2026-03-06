@@ -132,7 +132,7 @@ func NewServer(h host.Host, addr string, info Info, presenceStore *presence.Stor
 	mux.HandleFunc("/connect", s.handleConnect)
 	mux.HandleFunc("/peers", s.handlePeers)
 	mux.HandleFunc("/presence", s.handlePresence)
-	mux.HandleFunc("/presence/peers", s.handlePresencePeers)
+	mux.HandleFunc("/presence/update", s.handlePresenceUpdate)
 	mux.HandleFunc("/protocols", s.handleProtocols)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.HandleFunc("/security", s.handleSecurity)
@@ -1043,30 +1043,30 @@ func (s *Server) handlePresence(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handlePresenceUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		DisplayName string `json:"display_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "bad json"})
+		return
+	}
+	
+	self := s.presence.Self()
+	self.DisplayName = req.DisplayName
+	s.presence.UpdateSelf(self)
+	
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
 func (s *Server) handlePresencePeers(w http.ResponseWriter, r *http.Request) {
-	var peers []presence.PeerPresence
-	if s.presence != nil {
-		peers = s.presence.Snapshot()
-	}
-	// Fallback: synthesize from connected peers if presence empty
-	if len(peers) == 0 {
-		for _, p := range s.host.Network().Peers() {
-			peers = append(peers, presence.PeerPresence{
-				Payload: presence.Payload{
-					PeerID:       p.String(),
-					DisplayName:  p.String()[0:8],
-					Capabilities: []string{"basic"},
-					Version:      s.info.Version,
-					UptimeSec:    int64(time.Since(s.start).Seconds()),
-					TimestampMs:  time.Now().UnixMilli(),
-				},
-				LastSeenMs: time.Now().UnixMilli(),
-			})
-		}
-	}
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"peers": peers,
-	})
+	peers := s.presence.Snapshot()
+	_ = json.NewEncoder(w).Encode(map[string]any{"peers": peers})
 }
 
 func (s *Server) handleProtocols(w http.ResponseWriter, r *http.Request) {

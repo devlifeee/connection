@@ -37,6 +37,12 @@ export function useNodeAgentPresence() {
   });
 }
 
+export function useUpdatePresence() {
+  return useMutation({
+    mutationFn: (displayName: string) => nodeAgentApi.updatePresence(displayName),
+  });
+}
+
 export function useNodeAgentProtocols() {
   return useQuery({
     queryKey: ["node-agent", "protocols"],

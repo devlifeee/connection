@@ -192,6 +192,7 @@ export const nodeAgentApi = {
   identity: () => getJson<IdentityResponse>("/identity"),
   peers: () => getJson<PeersResponse>("/peers"),
   presence: () => getJson<PresenceResponse>("/presence"),
+  updatePresence: (displayName: string) => postJson<{display_name: string}, {ok: boolean}>("/presence/update", {display_name: displayName}),
   presencePeers: () => getJson<PresencePeersResponse>("/presence/peers"),
   protocols: () => getJson<ProtocolsResponse>("/protocols"),
   // Increase timeout for /chat/send because backend may try direct stream (~2s) before relay/outbox

@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import Logo from './Logo';
 import { roadmapPhases } from '@/content/backendBlueprint';
 import { useNodeAgentHealth, useNodeAgentIdentity, useNodeAgentPresence, useNodeAgentProtocols } from "@/hooks/useNodeAgent";
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme, type FontSize } from '@/hooks/useTheme';
 
 type SettingsTab = 'profile' | 'network' | 'sessions' | 'privacy' | 'audio' | 'interface' | 'about';
 
@@ -40,7 +40,7 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
   const identity = useNodeAgentIdentity();
   const presence = useNodeAgentPresence();
   const protocols = useNodeAgentProtocols();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, fontSize, setFontSize } = useTheme();
 
   // Settings state
   const [mdns, setMdns] = useState(true);
@@ -54,7 +54,6 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
   const [compactView, setCompactView] = useState(false);
   const [showIdInChat, setShowIdInChat] = useState(false);
   const [networkAnimation, setNetworkAnimation] = useState(true);
-  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
 
   const copyId = () => {
     navigator.clipboard.writeText(user.nodeId);
@@ -343,12 +342,16 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
             <SettingToggle label="Анимации сети" checked={networkAnimation} onChange={setNetworkAnimation} />
             
             <div>
-              <label className="text-xs text-muted-foreground mb-2 block">Размер шрифта</label>
-              <div className="flex gap-2">
+              <label className="text-xs text-muted-foreground mb-3 block font-medium uppercase tracking-wider">Размер шрифта</label>
+              <div className="flex gap-3 bg-secondary/30 p-1.5 rounded-xl">
                 {(['small', 'medium', 'large'] as const).map(s => (
-                  <button key={s} onClick={() => setFontSize(s)}
-                    className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
-                      fontSize === s ? 'border-primary text-primary bg-primary/10' : 'border-border text-muted-foreground'
+                  <button 
+                    key={s} 
+                    onClick={() => setFontSize(s)}
+                    className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      fontSize === s 
+                        ? 'bg-background text-primary shadow-sm scale-[1.02]' 
+                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                     }`}
                   >
                     {s === 'small' ? 'Мелкий' : s === 'medium' ? 'Средний' : 'Крупный'}

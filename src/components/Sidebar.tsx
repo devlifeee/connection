@@ -85,16 +85,6 @@ const Sidebar = ({ user, activeSection, onSectionChange, activeDialog, onDialogS
       {/* Chat List */}
       {activeSection === 'chats' && (
         <div className="flex-1 flex flex-col min-h-0 mt-2">
-            <div className="px-4 py-2">
-                <div className="relative">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input 
-                        type="text" 
-                        placeholder="Поиск..." 
-                        className="w-full bg-secondary/50 border-none rounded-lg py-2 pl-9 pr-4 text-sm focus:ring-1 focus:ring-primary/50 outline-none placeholder:text-muted-foreground/50 transition-all dark:bg-white/5"
-                    />
-                </div>
-            </div>
             <PresenceChatList activeDialog={activeDialog} onSelect={(id) => { clearUnread(id); onDialogSelect(id); }} unread={unread} />
         </div>
       )}
@@ -105,11 +95,19 @@ const Sidebar = ({ user, activeSection, onSectionChange, activeDialog, onDialogS
       {/* User Profile */}
       <div className="p-4 mt-auto border-t border-border/40 bg-background/50 dark:bg-card/60 backdrop-blur-sm">
         <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-secondary/60 transition-colors cursor-pointer group">
-          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-muted-foreground">
-              <path d="M20 21a8 8 0 1 0-16 0" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
+          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
+             {user.avatar ? (
+                typeof user.avatar === 'string' ? (
+                   <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" />
+                ) : (
+                   <GeometricAvatar index={user.avatar} size={40} />
+                )
+             ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-muted-foreground">
+                  <path d="M20 21a8 8 0 1 0-16 0" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+             )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold truncate text-foreground">{user.name}</p>
@@ -135,48 +133,75 @@ export default Sidebar;
 
 function PresenceChatList({ activeDialog, onSelect, unread }: { activeDialog: string | null; onSelect: (peerId: string) => void; unread: Record<string, number> }) {
   const { data, isLoading } = useNodeAgentPresencePeers();
+  const [searchTerm, setSearchTerm] = useState('');
+  
   const peers = data?.peers ?? [];
+  const filteredPeers = useMemo(() => {
+     if (!searchTerm) return peers;
+     const term = searchTerm.toLowerCase();
+     return peers.filter(p => {
+         const name = p.payload.display_name?.toLowerCase() || '';
+         const id = p.payload.peer_id.toLowerCase();
+         return name.includes(term) || id.includes(term);
+     });
+  }, [peers, searchTerm]);
+
   return (
-    <ScrollArea className="flex-1 px-2">
-      <div className="space-y-1 p-2">
-        {isLoading && <div className="text-xs text-muted-foreground px-2 py-1">Загрузка…</div>}
-        {(!peers.length && !isLoading) && <div className="text-xs text-muted-foreground px-2 py-1">В сети никого нет</div>}
-        {peers.map(p => {
-          const peerId = p.payload.peer_id;
-          const name = p.payload.display_name || peerId.substring(0, 8);
-          const isActive = activeDialog === peerId;
-          const count = unread[peerId] || 0;
-          return (
-            <button
-              key={peerId}
-              onClick={() => onSelect(peerId)}
-              className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 text-left group ${
-                isActive ? 'bg-secondary/40 shadow-sm' : 'hover:bg-secondary/40'
-              }`}
-            >
-              <div className="relative shrink-0">
-                <GeometricAvatar index={1} size={44} />
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500/80 border-2 border-background rounded-full" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-sm font-semibold truncate">
-                    {name}
-                  </span>
-                  {count > 0 && (
-                    <span className="ml-2 bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                      {count}
-                    </span>
-                  )}
+    <div className="flex flex-col h-full">
+        <div className="px-4 py-2 shrink-0">
+            <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input 
+                    type="text" 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Поиск..." 
+                    className="w-full bg-secondary/50 border-none rounded-lg py-2 pl-9 pr-4 text-sm focus:ring-1 focus:ring-primary/50 outline-none placeholder:text-muted-foreground/50 transition-all dark:bg-white/5"
+                />
+            </div>
+        </div>
+        <ScrollArea className="flex-1 px-2">
+        <div className="space-y-1 p-2">
+            {isLoading && <div className="text-xs text-muted-foreground px-2 py-1">Загрузка…</div>}
+            {(!peers.length && !isLoading) && <div className="text-xs text-muted-foreground px-2 py-1">В сети никого нет</div>}
+            {(peers.length > 0 && !filteredPeers.length) && <div className="text-xs text-muted-foreground px-2 py-1">Ничего не найдено</div>}
+            {filteredPeers.map(p => {
+            const peerId = p.payload.peer_id;
+            const name = p.payload.display_name || peerId.substring(0, 8);
+            const isActive = activeDialog === peerId;
+            const count = unread[peerId] || 0;
+            return (
+                <button
+                key={peerId}
+                onClick={() => onSelect(peerId)}
+                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 text-left group ${
+                    isActive ? 'bg-secondary/40 shadow-sm' : 'hover:bg-secondary/40'
+                }`}
+                >
+                <div className="relative shrink-0">
+                    <GeometricAvatar index={1} size={44} />
+                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500/80 border-2 border-background rounded-full" />
                 </div>
-                <p className="text-xs truncate leading-relaxed text-muted-foreground">
-                  Готов к связи
-                </p>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </ScrollArea>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-sm font-semibold truncate">
+                        {name}
+                    </span>
+                    {count > 0 && (
+                        <span className="ml-2 bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                        {count}
+                        </span>
+                    )}
+                    </div>
+                    <p className="text-xs truncate leading-relaxed text-muted-foreground">
+                    Готов к связи
+                    </p>
+                </div>
+                </button>
+            );
+            })}
+        </div>
+        </ScrollArea>
+    </div>
   );
 }
