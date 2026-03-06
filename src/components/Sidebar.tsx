@@ -105,7 +105,12 @@ const Sidebar = ({ user, activeSection, onSectionChange, activeDialog, onDialogS
       {/* User Profile */}
       <div className="p-4 mt-auto border-t border-border/40 bg-background/50 dark:bg-card/60 backdrop-blur-sm">
         <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-secondary/60 transition-colors cursor-pointer group">
-          <GeometricAvatar index={user.avatar} size={40} />
+          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-muted-foreground">
+              <path d="M20 21a8 8 0 1 0-16 0" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold truncate text-foreground">{user.name}</p>
             <div className="flex items-center gap-1.5">

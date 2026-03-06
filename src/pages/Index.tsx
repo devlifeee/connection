@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import LoadingScreen from '@/components/LoadingScreen';
 import RegistrationScreen from '@/components/RegistrationScreen';
 import Sidebar, { type NavSection } from '@/components/Sidebar';
@@ -23,6 +24,7 @@ type AppState = 'loading' | 'registration' | 'main';
 
 const Index = () => {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const { sessionState, events } = useSession();
   const [appState, setAppState] = useState<AppState>('loading');
   const [user, setUser] = useState<UserData | null>(null);
@@ -77,7 +79,8 @@ const Index = () => {
   const handleLogout = useCallback(() => {
     setUser(null);
     localStorage.removeItem('svyaz-user');
-    setAppState('registration');
+    // Force reload to clear App state and ensure clean registration screen
+    window.location.href = "/registration";
   }, []);
 
   // Global notifications for chat/call events

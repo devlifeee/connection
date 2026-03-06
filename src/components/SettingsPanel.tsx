@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Lock, AlertTriangle, RefreshCw, Copy, Upload, Sun, Moon } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Lock, AlertTriangle, RefreshCw, Copy, Upload, Sun, Moon, Pencil, Check, X, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -32,6 +32,9 @@ const tabs: { id: SettingsTab; label: string }[] = [
 const SettingsPanel = ({ user, onUpdateUser }: Props) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [name, setName] = useState(user.name);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  
   const { toast } = useToast();
   const health = useNodeAgentHealth();
   const identity = useNodeAgentIdentity();
@@ -56,6 +59,33 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
   const copyId = () => {
     navigator.clipboard.writeText(user.nodeId);
     toast({ title: 'Скопировано', description: user.nodeId });
+  };
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'Ошибка', description: 'Размер файла не должен превышать 5МБ', variant: 'destructive' });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        onUpdateUser({ avatar: result });
+        toast({ title: 'Аватар обновлен' });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveName = () => {
+    if (!name.trim()) return;
+    onUpdateUser({ name });
+    setIsEditingName(false);
+    toast({ title: 'Имя сохранено' });
   };
 
   return (
@@ -93,73 +123,87 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
         </div>
 
         {activeTab === 'profile' && (
-          <div className="space-y-4">
+          <div className="space-y-6">
             <h3 className="text-lg font-semibold">Профиль</h3>
-            <div className="flex items-center gap-4 mb-4">
-              <GeometricAvatar index={user.avatar} size={64} />
-              <div className="flex flex-col gap-2">
-                <div className="flex gap-2 flex-wrap">
-                  {[0, 1, 2, 3, 4, 5].map(i => (
-                    <GeometricAvatar key={i} index={i} size={32} selected={user.avatar === i}
-                      onClick={() => onUpdateUser({ avatar: i })} />
-                  ))}
-                  <div className="relative">
-                    <input 
-                      type="file" 
-                      id="settings-avatar-upload"
-                      className="hidden" 
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            onUpdateUser({ avatar: reader.result as string });
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      className="h-8 w-8 rounded-full"
-                      onClick={() => document.getElementById('settings-avatar-upload')?.click()}
-                    >
-                      <Upload size={14} />
-                    </Button>
+            
+            <div className="flex items-center gap-6 mb-6">
+              <div className="relative group cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
+                <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-border group-hover:border-primary transition-colors relative">
+                   {/* Handle both geometric index (number) and image URL (string) */}
+                   <GeometricAvatar index={user.avatar} size={96} className="w-full h-full" />
+                   
+                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Camera className="text-white w-8 h-8" />
+                   </div>
+                </div>
+                <input 
+                  type="file" 
+                  ref={avatarInputRef} 
+                  className="hidden" 
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                />
+              </div>
+              
+              <div className="flex-1 space-y-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block uppercase tracking-wider font-semibold">Имя</label>
+                  
+                  {isEditingName ? (
+                    <div className="flex items-center gap-2">
+                      <Input 
+                        value={name} 
+                        onChange={e => setName(e.target.value)} 
+                        className="bg-card w-[200px]" 
+                        autoFocus
+                        onKeyDown={e => e.key === 'Enter' && saveName()}
+                      />
+                      <Button size="icon" variant="secondary" onClick={saveName} className="h-9 w-9 text-green-500 hover:text-green-600">
+                        <Check size={18} />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => { setIsEditingName(false); setName(user.name); }} className="h-9 w-9 text-destructive hover:text-destructive">
+                        <X size={18} />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 group">
+                      <span className="text-xl font-medium">{user.name}</span>
+                      <button 
+                        onClick={() => setIsEditingName(true)}
+                        className="p-1.5 rounded-full hover:bg-secondary/80 text-muted-foreground hover:text-primary transition-all opacity-0 group-hover:opacity-100"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block uppercase tracking-wider font-semibold">Идентификатор</label>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm bg-secondary/30 px-2 py-1 rounded text-primary">{user.nodeId}</span>
+                    <button onClick={copyId} className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground transition-colors">
+                      <Copy size={14} />
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Имя</label>
-              <div className="flex gap-2">
-                <Input value={name} onChange={e => setName(e.target.value)} className="bg-card" />
-                <Button size="sm" onClick={() => { onUpdateUser({ name }); toast({ title: 'Сохранено' }); }}>
-                  Сохранить
-                </Button>
-              </div>
+
+            <div className="pt-4 border-t border-border">
+              <Button variant="outline" size="sm" className="gap-2 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  const newId = generateNodeId();
+                  onUpdateUser({ nodeId: newId });
+                  toast({ title: 'Новый ключ сгенерирован', description: newId });
+                }}
+              >
+                <RefreshCw size={14} /> Сгенерировать новый ключ
+              </Button>
+              <p className="text-[10px] text-destructive flex items-center gap-1 mt-2 opacity-80">
+                <AlertTriangle size={10} /> Смена ключа приведёт к потере текущей идентичности
+              </p>
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Идентификатор</label>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-sm text-primary">{user.nodeId}</span>
-                <Copy size={14} className="cursor-pointer text-muted-foreground hover:text-foreground" onClick={copyId} />
-              </div>
-            </div>
-            <Button variant="outline" size="sm" className="gap-2"
-              onClick={() => {
-                const newId = generateNodeId();
-                onUpdateUser({ nodeId: newId });
-                toast({ title: 'Новый ключ сгенерирован', description: newId });
-              }}
-            >
-              <RefreshCw size={14} /> Сгенерировать новый ключ
-            </Button>
-            <p className="text-[10px] text-destructive flex items-center gap-1">
-              <AlertTriangle size={10} /> Смена ключа приведёт к потере текущей идентичности
-            </p>
           </div>
         )}
 

@@ -22,19 +22,10 @@ const RegistrationScreen = ({ onRegister }: Props) => {
 
   const handleSubmit = () => {
     if (!name.trim()) return;
-    onRegister({ name: name.trim(), nodeId, avatar: avatar ?? 0 });
+    onRegister({ name: name.trim(), nodeId, avatar: 0 });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatar(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  const handleFileChange = (_e: React.ChangeEvent<HTMLInputElement>) => {};
 
   return (
     <div className={`fixed inset-0 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-hidden transition-colors duration-500 min-h-[100dvh] pb-[env(safe-area-inset-bottom)] ${isDarkMode ? 'bg-[#0a0a0a] text-white' : 'bg-[#f5f5f7] text-gray-900'}`}>
@@ -92,32 +83,14 @@ const RegistrationScreen = ({ onRegister }: Props) => {
         <div className="flex flex-col items-center gap-4 w-full">
             <div className="relative group">
             <div 
-                className={`relative w-[96px] h-[96px] rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.15)] flex items-center justify-center overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.03] border ${
+                className={`relative w-[96px] h-[96px] rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.15)] flex items-center justify-center overflow-hidden border ${
                 isDarkMode 
-                    ? 'bg-gradient-to-b from-[#2c2c2e] to-[#1c1c1e] border-white/10 group-hover:border-blue-500/30' 
-                    : 'bg-gradient-to-b from-white to-gray-50 border-white/80 group-hover:border-blue-400/50'
+                    ? 'bg-gradient-to-b from-[#2c2c2e] to-[#1c1c1e] border-white/10' 
+                    : 'bg-gradient-to-b from-white to-gray-50 border-white/80'
                 }`}
-                onClick={() => fileInputRef.current?.click()}
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
             >
-                {avatar !== null ? (
-                <GeometricAvatar
-                    index={avatar}
-                    size={96}
-                    className="w-full h-full object-cover"
-                />
-                ) : (
                 <User size={52} className={isDarkMode ? 'text-white/20' : 'text-gray-300'} strokeWidth={1.5} />
-                )}
-                
-                {/* iOS-style overlay */}
-                <div className={`absolute inset-0 bg-black/40 backdrop-blur-[3px] flex flex-col items-center justify-center transition-all duration-300 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
-                <Upload size={28} className="text-white mb-1.5 drop-shadow-md" strokeWidth={2} />
-                <span className="text-[11px] font-semibold text-white tracking-widest drop-shadow-md">ИЗМЕНИТЬ</span>
-                </div>
             </div>
-            
             {/* Status Badge */}
             {name.trim() && (
                 <div className={`absolute bottom-1 right-1 rounded-full p-[4px] shadow-lg animate-in fade-in zoom-in duration-300 ${isDarkMode ? 'bg-[#1c1c1e]' : 'bg-white'}`}>
@@ -126,7 +99,6 @@ const RegistrationScreen = ({ onRegister }: Props) => {
                 </div>
                 </div>
             )}
-
             <input 
                 type="file" 
                 ref={fileInputRef}
@@ -134,19 +106,6 @@ const RegistrationScreen = ({ onRegister }: Props) => {
                 className="hidden" 
                 accept="image/*"
             />
-            </div>
-
-            {/* Geometric Avatars Selection */}
-            <div className="grid grid-cols-5 gap-2 justify-center px-2">
-                {[0, 1, 2, 3, 4].map(i => (
-                    <div 
-                        key={i} 
-                        onClick={() => setAvatar(i)}
-                        className={`cursor-pointer transition-all duration-300 hover:scale-110 ${avatar === i ? 'ring-2 ring-blue-500 rounded-lg scale-110' : 'opacity-70 hover:opacity-100'}`}
-                    >
-                        <GeometricAvatar index={i} size={36} />
-                    </div>
-                ))}
             </div>
         </div>
 
@@ -207,9 +166,7 @@ const RegistrationScreen = ({ onRegister }: Props) => {
             Войти в сеть
           </Button>
           
-          <p className={`text-[11px] text-center font-semibold tracking-[0.2em] uppercase ${isDarkMode ? 'text-white/20' : 'text-gray-400/60'}`}>
-            End-to-End Encrypted
-          </p>
+          <p className={`text-[11px] text-center font-semibold tracking-[0.2em] uppercase ${isDarkMode ? 'text-white/20' : 'text-gray-400/60'}`}>Сквозное шифрование</p>
         </div>
       </div>
       

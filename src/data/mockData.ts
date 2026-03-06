@@ -19,10 +19,14 @@ export interface Message {
   from: string; // nodeId or 'me'
   text: string;
   time: string;
+  timestamp?: number;
   delivered: boolean;
-  type: 'text' | 'file' | 'system';
+  type: 'text' | 'file' | 'system' | 'audio';
   fileName?: string;
   fileSize?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'file' | 'audio';
+  duration?: string;
 }
 
 export interface Dialog {
