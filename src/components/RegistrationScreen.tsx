@@ -115,6 +115,7 @@ const RegistrationScreen = ({ onRegister }: Props) => {
             <Input
               placeholder="Введите имя"
               value={name}
+              maxLength={20}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSubmit()}
               className={`h-11 border rounded-2xl text-[15px] px-4 font-medium transition-all duration-200 text-center tracking-wide focus:ring-[3px] ${

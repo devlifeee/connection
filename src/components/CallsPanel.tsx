@@ -39,6 +39,8 @@ const CallsPanel = () => {
   const [history, setHistory] = useState<Array<{ peer: string; type: 'audio'|'video'; dir: 'исходящий'|'входящий'; ts: number; dur: number }>>(() => {
     try { return JSON.parse(localStorage.getItem('svyaz-call-history') || '[]'); } catch { return []; }
   });
+  const [historyLimit, setHistoryLimit] = useState(5);
+
   const saveHistory = (items: typeof history) => {
     setHistory(items);
     try { localStorage.setItem('svyaz-call-history', JSON.stringify(items.slice(-50))); } catch {}
@@ -517,7 +519,7 @@ const CallsPanel = () => {
         ref={remoteVideoRef} 
         autoPlay 
         playsInline 
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 bg-black ${callState === 'connected' && currentCall?.type === 'video' ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 bg-black pointer-events-none ${callState === 'connected' && currentCall?.type === 'video' ? 'opacity-100' : 'opacity-0'}`}
       />
       
       {/* Local Video Preview (PiP) */}
@@ -529,8 +531,9 @@ const CallsPanel = () => {
 
       {/* Idle State */}
       {callState === 'idle' && (
-        <div className="flex flex-col items-center justify-center h-full p-8 space-y-6 z-10">
-            <div className="w-32 h-32 rounded-full bg-muted flex items-center justify-center mb-4">
+        <div className="flex-1 flex flex-col items-center p-8 animate-in fade-in duration-500 relative z-10 overflow-y-auto">
+            <div className="w-full max-w-md space-y-8 flex flex-col items-center">
+                <div className="w-32 h-32 rounded-full bg-muted flex items-center justify-center mb-4">
                 <Video size={48} className="text-muted-foreground" />
             </div>
             <h2 className="text-2xl font-semibold">Начать звонок</h2>
@@ -563,9 +566,9 @@ const CallsPanel = () => {
                  
                  <div className="mt-6">
                    <h3 className="text-sm font-semibold mb-2">История звонков</h3>
-                   <div className="space-y-2 max-h-52 overflow-auto pr-1">
+                   <div className="space-y-2">
                      {history.length === 0 && <div className="text-xs text-muted-foreground">Пока пусто</div>}
-                     {history.slice().reverse().map((h, i) => (
+                     {history.slice().reverse().slice(0, historyLimit).map((h, i) => (
                        <div key={i} className="text-xs bg-card/60 border border-border/40 rounded-md px-3 py-2 flex items-center justify-between">
                          <span className="font-mono">{new Date(h.ts).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}</span>
                          <span className="uppercase tracking-wide">{h.type === 'video' ? 'Видео' : 'Аудио'}</span>
@@ -573,7 +576,16 @@ const CallsPanel = () => {
                          <span className="font-mono opacity-70">{Math.floor(h.dur/60).toString().padStart(2,'0')}:{(h.dur%60).toString().padStart(2,'0')}</span>
                        </div>
                      ))}
+                     {history.length > historyLimit && (
+                       <button 
+                         onClick={() => setHistoryLimit(prev => prev + 5)}
+                         className="w-full text-xs text-primary hover:text-primary/80 py-2 font-medium transition-colors"
+                       >
+                         Загрузить еще
+                       </button>
+                     )}
                    </div>
+                 </div>
                  </div>
             </div>
         </div>
@@ -601,72 +613,81 @@ const CallsPanel = () => {
 
       {/* Active Call / Outgoing */}
       {(callState === 'connected' || callState === 'outgoing') && (
-          <div className={`flex flex-col items-center justify-center h-full space-y-8 z-10 ${currentCall?.type === 'video' && callState === 'connected' ? 'bg-black/40 text-white backdrop-blur-sm absolute inset-0' : ''}`}>
+          <div className={`flex flex-col h-full z-10 ${currentCall?.type === 'video' && callState === 'connected' ? 'bg-black/40 text-white backdrop-blur-sm absolute inset-0' : ''}`}>
               
-              {/* Show Avatar only if Audio Call or Video not yet connected */}
-              {(currentCall?.type !== 'video' || callState !== 'connected') && (
-                  <div className="relative">
-                      <div className="w-40 h-40 rounded-full bg-muted flex items-center justify-center overflow-hidden border-4 border-background shadow-xl">
-                          <GeometricAvatar index={1} size={160} />
+              <div className="flex-1 flex flex-col items-center justify-center space-y-8">
+                  {/* Show Avatar only if Audio Call or Video not yet connected */}
+                  {(currentCall?.type !== 'video' || callState !== 'connected') && (
+                      <div className="relative">
+                          <div className="w-40 h-40 rounded-full bg-muted flex items-center justify-center overflow-hidden border-4 border-background shadow-xl">
+                              <GeometricAvatar index={1} size={160} />
+                          </div>
+                          {callState === 'connected' && (
+                              <div className="absolute bottom-2 right-2 w-4 h-4 bg-green-500 rounded-full border-2 border-background" />
+                          )}
                       </div>
-                      {callState === 'connected' && (
-                          <div className="absolute bottom-2 right-2 w-4 h-4 bg-green-500 rounded-full border-2 border-background" />
-                      )}
-                  </div>
-              )}
-              
-              <div className="text-center space-y-2">
-                  <h3 className="text-2xl font-bold">
-                      {currentCall?.peer_id.substring(0, 8)}...
-                  </h3>
-                  <p className={`font-mono text-xl tracking-wider ${currentCall?.type === 'video' && callState === 'connected' ? 'text-white' : 'text-primary'}`}>
-                      {callState === 'outgoing' ? 'Calling...' : callTimer}
-                  </p>
-                  <div className={`flex items-center justify-center gap-2 text-xs ${currentCall?.type === 'video' && callState === 'connected' ? 'text-white/70' : 'text-muted-foreground'}`}>
-                      <Lock size={12} /> Сквозное шифрование
-                  </div>
-                  {metrics && callState === 'connected' && (
-                    <div className="mt-2 text-xs font-mono opacity-80">
-                      <span className="px-2 py-0.5 rounded bg-secondary/40 mr-1">RTT: {metrics.rtt ? Math.round(metrics.rtt) : '—'}ms</span>
-                      <span className="px-2 py-0.5 rounded bg-secondary/40 mr-1">A-Jit: {metrics.audio?.jitter ? Math.round(metrics.audio.jitter) : '—'}ms</span>
-                      <span className="px-2 py-0.5 rounded bg-secondary/40 mr-1">A-Loss: {metrics.audio?.inboundLoss?.toFixed(1) ?? '0.0'}%</span>
-                      <span className="px-2 py-0.5 rounded bg-secondary/40 mr-1">V-Jit: {metrics.video?.jitter ? Math.round(metrics.video.jitter) : '—'}ms</span>
-                      <span className="px-2 py-0.5 rounded bg-secondary/40 mr-1">V-Loss: {metrics.video?.inboundLoss?.toFixed(1) ?? '0.0'}%</span>
-                      <span className={`px-2 py-0.5 rounded ${metrics.quality === 'good' ? 'bg-green-500/20 text-green-500' : metrics.quality === 'medium' ? 'bg-yellow-500/20 text-yellow-500' : 'bg-red-500/20 text-red-500'}`}>Quality: {metrics.quality}</span>
-                    </div>
                   )}
               </div>
 
-              <div className="flex items-center gap-6 mt-8">
-                  <Button 
-                    variant={currentCall?.type === 'video' && callState === 'connected' ? "secondary" : "outline"}
-                    size="icon" 
-                    className={`h-14 w-14 rounded-full ${!micEnabled ? 'bg-red-500 text-white border-red-600 hover:bg-red-600' : ''}`}
-                    onClick={toggleMic}
-                  >
-                      {micEnabled ? <Mic size={24} /> : <MicOff size={24} />}
-                  </Button>
-                  
-                  <Button 
-                    variant="destructive" 
-                    size="icon" 
-                    className="h-16 w-16 rounded-full shadow-lg"
-                    onClick={endCall}
-                  >
-                      <PhoneOff size={32} />
-                  </Button>
-                  
-                  {currentCall?.type === 'video' && (
-                    <Button 
+              {/* Info and Controls at bottom */}
+              <div className="flex flex-col items-center pb-8 pt-4 space-y-6">
+                  <div className="text-center space-y-2">
+                      <h3 className="text-2xl font-bold">
+                          {currentCall?.peer_id.substring(0, 8)}...
+                      </h3>
+                      <p className={`font-mono text-xl tracking-wider ${currentCall?.type === 'video' && callState === 'connected' ? 'text-white' : 'text-primary'}`}>
+                          {callState === 'outgoing' ? 'Calling...' : callTimer}
+                      </p>
+                      <div className={`flex items-center justify-center gap-2 text-xs ${currentCall?.type === 'video' && callState === 'connected' ? 'text-white/70' : 'text-muted-foreground'}`}>
+                          <Lock size={12} /> Сквозное шифрование
+                      </div>
+                  </div>
+
+                  <div className="flex justify-center gap-6 relative">
+                      <Button 
                         variant={currentCall?.type === 'video' && callState === 'connected' ? "secondary" : "outline"}
                         size="icon" 
-                        className={`h-14 w-14 rounded-full ${!videoEnabled ? 'bg-red-500 text-white border-red-600 hover:bg-red-600' : ''}`}
-                        onClick={toggleVideo}
-                    >
-                        {videoEnabled ? <Camera size={24} /> : <CameraOff size={24} />}
-                    </Button>
-                  )}
+                        className={`h-14 w-14 rounded-full ${!micEnabled ? 'bg-red-500 text-white border-red-600 hover:bg-red-600' : ''}`}
+                        onClick={toggleMic}
+                      >
+                          {micEnabled ? <Mic size={24} /> : <MicOff size={24} />}
+                      </Button>
+                      
+                      <Button 
+                        variant="destructive" 
+                        size="icon" 
+                        className="h-16 w-16 rounded-full shadow-lg"
+                        onClick={endCall}
+                      >
+                          <PhoneOff size={32} />
+                      </Button>
+                      
+                      {currentCall?.type === 'video' && (
+                        <Button 
+                            variant={currentCall?.type === 'video' && callState === 'connected' ? "secondary" : "outline"}
+                            size="icon" 
+                            className={`h-14 w-14 rounded-full ${!videoEnabled ? 'bg-red-500 text-white border-red-600 hover:bg-red-600' : ''}`}
+                            onClick={toggleVideo}
+                        >
+                            {videoEnabled ? <Camera size={24} /> : <CameraOff size={24} />}
+                        </Button>
+                      )}
+                  </div>
               </div>
+
+              {/* Metrics in bottom right */}
+              {metrics && callState === 'connected' && (
+                <div className="absolute bottom-4 right-4 text-[10px] font-mono opacity-80 bg-black/60 text-white p-2 rounded-lg backdrop-blur-sm space-y-1 text-right min-w-[120px]">
+                  <div>RTT: {metrics.rtt ? Math.round(metrics.rtt) : '—'}ms</div>
+                  <div>A-Jit: {metrics.audio?.jitter ? Math.round(metrics.audio.jitter) : '—'}ms</div>
+                  <div>A-Loss: {metrics.audio?.inboundLoss?.toFixed(1) ?? '0.0'}%</div>
+                  <div>V-Jit: {metrics.video?.jitter ? Math.round(metrics.video.jitter) : '—'}ms</div>
+                  <div>V-Loss: {metrics.video?.inboundLoss?.toFixed(1) ?? '0.0'}%</div>
+                  <div className={`font-bold ${metrics.quality === 'good' ? 'text-green-400' : metrics.quality === 'medium' ? 'text-yellow-400' : 'text-red-400'}`}>
+                    {metrics.quality.toUpperCase()}
+                  </div>
+                </div>
+              )}
           </div>
       )}
     </div>
