@@ -15,8 +15,10 @@ import (
 	"github.com/nhex-team/connection/node-agent/internal/api"
 	"github.com/nhex-team/connection/node-agent/internal/discovery"
 	"github.com/nhex-team/connection/node-agent/internal/identity"
+	"github.com/nhex-team/connection/node-agent/internal/media"
 	"github.com/nhex-team/connection/node-agent/internal/presence"
 	"github.com/nhex-team/connection/node-agent/internal/protocol"
+	"github.com/nhex-team/connection/node-agent/internal/filetransfer"
 )
 
 type Runtime struct {
@@ -55,6 +57,15 @@ func Start(ctx context.Context, cfg Config) (*Runtime, error) {
 		return nil, err
 	}
 
+	chatStore := protocol.NewChatStore(500)
+	mediaMgr := media.NewManager(h)
+	mediaMgr.Start()
+	fileMgr := filetransfer.NewManager(h, filetransfer.Config{
+		DownloadsDir: filepath.Join(cfg.DataDir, "downloads"),
+		MaxFileSize:  1 << 30,
+		RateLimitBps: 2 << 20, // ~2MB/s default
+	})
+	fileMgr.Start()
 	chat := &protocol.ChatHandler{}
 	h.SetStreamHandler(chat.ProtocolID(cfg.ProtocolChat), chat.HandleStream)
 
@@ -89,7 +100,26 @@ func Start(ctx context.Context, cfg Config) (*Runtime, error) {
 			"media_signal": cfg.ProtocolMediaSign,
 			"presence":     cfg.ProtocolPresence,
 		},
-	}, pdb)
+	}, pdb, chatStore, mediaMgr, fileMgr)
+	mediaMgr.SetHandler(srv)
+	chat.OnMsg = func(e protocol.Envelope) {
+		chatStore.Add(e.Sender, e)
+		if srv != nil {
+			srv.Broadcast(map[string]any{
+				"type": "chat_message",
+				"env":  e,
+			})
+		}
+	}
+	chat.OnAck = func(e protocol.Envelope) {
+		chatStore.Add(e.Sender, e)
+		if srv != nil {
+			srv.Broadcast(map[string]any{
+				"type": "chat_ack",
+				"env":  e,
+			})
+		}
+	}
 	if err := srv.Start(); err != nil {
 		_ = ps.Close()
 		_ = md.Close()

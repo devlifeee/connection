@@ -25,3 +25,12 @@ dist-ssr
 
 #Я (сева) разные доки прописываю для работы поэтому эту папку закину в гитигнор
 docs/
+
+# Node agent build artifacts and data
+node-agent/node-agent
+node-agent/data-node1/
+node-agent/data-node2/
+node-agent/downloads/
+
+# Local task scratchpad
+task/

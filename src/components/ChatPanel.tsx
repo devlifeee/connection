@@ -4,8 +4,11 @@ import {
   ChevronDown, File, Download, CheckCheck,
 } from 'lucide-react';
 import GeometricAvatar from './GeometricAvatar';
-import { getNodeByNodeId, type Message } from '@/data/mockData';
-import { useChatHistory, useNodeAgentPresencePeers, useSendChatMessage } from "@/hooks/useNodeAgent";
+import type { Message } from '@/data/mockData';
+import { useChatHistory, useNodeAgentPresencePeers, useSendChatMessage, useNodeAgentIdentity } from "@/hooks/useNodeAgent";
+import { useSession } from '@/hooks/useSession';
+import { toast } from 'sonner';
+import { nodeAgentApi } from '@/api/nodeAgent';
 
 interface Props {
   dialogNodeId: string | null;
@@ -14,7 +17,6 @@ interface Props {
 }
 
 const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel }: Props) => {
-  const node = dialogNodeId ? getNodeByNodeId(dialogNodeId) : null;
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [showScroll, setShowScroll] = useState(false);
@@ -23,12 +25,19 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel }: Props) => 
   const containerRef = useRef<HTMLDivElement>(null);
   const presencePeers = useNodeAgentPresencePeers();
   const sendChat = useSendChatMessage();
-  const currentPeerId = presencePeers.data?.peers?.[0]?.payload.peer_id;
-  const chatHistory = useChatHistory(currentPeerId);
+  const selectedPeerId = dialogNodeId || presencePeers.data?.peers?.[0]?.payload.peer_id;
+  const chatHistory = useChatHistory(selectedPeerId);
+  const { events } = useSession();
+  const identity = useNodeAgentIdentity();
+  const myPeerId = identity.data?.peer_id;
+  const [lastReadId, setLastReadId] = useState<string>('');
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory.data?.messages?.length]);
 
   const handleScroll = () => {
     if (!containerRef.current) return;
@@ -51,8 +60,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel }: Props) => 
     setInput('');
     setBackendError(null);
 
-    const target = presencePeers.data?.peers?.[0];
-    const peerId = target?.payload.peer_id;
+    const peerId = selectedPeerId;
     if (!peerId) {
       setBackendError("Нет видимых peer в presence — сообщение осталось локально.");
       return;
@@ -68,7 +76,37 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel }: Props) => 
     );
   };
 
-  if (!node) {
+  // Show toast notifications for incoming chat events via WS
+  useEffect(() => {
+    const latest = events.slice(-5);
+    for (const ev of latest) {
+      if (ev.type === 'chat_message' && ev.env && ev.env.sender && ev.env.payload) {
+        try {
+          const payload = ev.env.payload as any;
+          const txt = typeof payload === 'object' ? payload.text : '';
+          if (txt) {
+            toast(`Сообщение от ${String(ev.env.sender).slice(0,8)}…`, { description: txt });
+          }
+        } catch (_e) { void 0 }
+      }
+      if (ev.type === 'chat_read' && ev.peer_id === selectedPeerId && typeof ev.last_id === 'string') {
+        setLastReadId(ev.last_id as string);
+      }
+    }
+  }, [events]);
+
+  // Mark peer messages as read when viewing chat
+  useEffect(() => {
+    const msgs = chatHistory.data?.messages ?? [];
+    if (!selectedPeerId || !msgs.length) return;
+    const lastIncoming = [...msgs].filter((m:any) => m.sender === selectedPeerId && m.type === 'chat').sort((a:any,b:any)=>a.timestamp-b.timestamp).pop();
+    if (lastIncoming && lastIncoming.id) {
+      nodeAgentApi.chatRead(selectedPeerId, lastIncoming.id).catch(()=>{});
+    }
+  }, [selectedPeerId, chatHistory.data?.messages?.length]);
+
+  const selectedPeer = presencePeers.data?.peers?.find(p => p.payload.peer_id === selectedPeerId) ?? null;
+  if (!selectedPeer) {
     return (
       <div className="flex-1 flex items-center justify-center bg-background/50 dark:bg-black/40 backdrop-blur-3xl">
         <div className="text-center opacity-50">
@@ -85,18 +123,14 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel }: Props) => 
       <div className="h-16 px-6 flex items-center justify-between shrink-0 bg-background/60 dark:bg-card/80 backdrop-blur-xl sticky top-0 z-20 border-b border-border/40 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="relative">
-             <GeometricAvatar index={node.avatar} size={44} />
-             {node.online && (
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-background rounded-full shadow-sm animate-pulse shadow-green-500/50" />
-             )}
+             <GeometricAvatar index={1} size={44} />
+             <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-background rounded-full shadow-sm animate-pulse shadow-green-500/50" />
           </div>
           <div>
-            <p className="text-base font-bold leading-none tracking-tight">{node.name}</p>
-            {node.online ? (
-              <p className="text-xs mt-1 font-medium bg-secondary/40 px-2 py-0.5 rounded-full inline-block text-green-500/80">Online</p>
-            ) : (
-              <p className="text-xs text-muted-foreground mt-1 font-medium">Offline</p>
-            )}
+            <p className="text-base font-bold leading-none tracking-tight">
+              {selectedPeer.payload.display_name || selectedPeer.payload.peer_id.substring(0,8)}
+            </p>
+            <p className="text-xs mt-1 font-medium bg-secondary/40 px-2 py-0.5 rounded-full inline-block text-green-500/80">Online</p>
           </div>
         </div>
         <div className="flex items-center gap-4 text-muted-foreground">
@@ -114,73 +148,35 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel }: Props) => 
 
       {/* Messages */}
       <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto scrollbar-thin px-4 py-6 space-y-6 relative">
-        {/* remote messages from node-agent history */}
-        {(chatHistory?.data?.messages ?? []).map(env => {
+        {/* remote messages from node-agent history (sorted, without ack bubbles) */}
+        {([...(chatHistory?.data?.messages ?? [])].sort((a,b)=>a.timestamp - b.timestamp)).map(env => {
+          if ((env as any).type === 'ack') return null;
           const txt = env.payload && typeof env.payload === "object" ? env.payload.text ?? "" : "";
           if (!txt) return null;
           const time = new Date(env.timestamp).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+          const isMe = env.sender === myPeerId;
+          const ackedIds = new Set((chatHistory?.data?.messages ?? []).filter((m:any)=>m.type==='ack' && m.ack_for).map((m:any)=>m.ack_for));
+          const delivered = isMe && ackedIds.has(env.id);
+          const read = isMe && !!lastReadId && (env.id <= lastReadId);
           return (
-            <div key={env.id} className="flex justify-start group items-end gap-2">
-               <GeometricAvatar index={node.avatar} size={28} className="mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="max-w-[70%] px-5 py-3.5 rounded-2xl rounded-bl-none bg-secondary/80 dark:bg-[#1B1F26]/90 backdrop-blur-sm text-sm shadow-sm hover:shadow-md transition-shadow border border-border/40">
+            <div key={env.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group items-end gap-2`}>
+               {!isMe && <GeometricAvatar index={1} size={28} className="mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />}
+              <div className={`max-w-[70%] px-5 py-3.5 rounded-2xl ${isMe ? 'rounded-br-none bg-primary/90 text-primary-foreground' : 'rounded-bl-none bg-card text-foreground border border-border/50'} text-sm shadow-sm hover:shadow-md transition-shadow`}>
                 <p className="leading-relaxed text-foreground/90">{txt}</p>
                 <div className="flex items-center gap-1 mt-1 opacity-50 text-[10px] select-none">
                   <span>{time}</span>
+                  {isMe && (
+                    <span className="ml-1 inline-flex items-center">
+                      {read ? <CheckCheck size={14} /> : delivered ? <CheckCheck size={14} className="opacity-70" /> : null}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
           );
         })}
 
-        {/* local messages (from me) */}
-        {messages.map((msg, idx) => {
-          if (msg.type === 'system') {
-            return (
-              <div key={msg.id} className="flex justify-center my-4">
-                  <span className="text-xs text-muted-foreground/80 bg-secondary/30 px-3 py-1 rounded-full border border-border/20 backdrop-blur-sm">
-                    {msg.text}
-                  </span>
-              </div>
-            );
-          }
-
-          const isMe = msg.from === 'me';
-          const isLast = idx === messages.length - 1;
-
-          return (
-            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group items-end gap-2 ${isLast ? 'mb-2' : ''}`}>
-               {!isMe && (
-                   <GeometricAvatar index={node.avatar} size={28} className="mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-               )}
-              <div className={`max-w-[70%] px-5 py-3.5 rounded-2xl text-sm shadow-sm hover:shadow-md transition-all duration-200 ${
-                isMe 
-                  ? 'bg-[#1B1F26] text-foreground rounded-br-none border border-border/40' 
-                  : 'bg-white dark:bg-[#1B1F26]/90 text-foreground rounded-bl-none border border-border/50'
-              }`}>
-                {msg.type === 'file' ? (
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2.5 rounded-xl ${isMe ? 'bg-white/20' : 'bg-primary/10 text-primary'}`}>
-                      <File size={20} strokeWidth={2} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold truncate">{msg.fileName}</p>
-                      <p className={`text-[10px] ${isMe ? 'text-white/70' : 'text-muted-foreground'}`}>{msg.fileSize}</p>
-                    </div>
-                    <button className={`p-1.5 rounded-full transition-colors ${isMe ? 'hover:bg-white/20' : 'hover:bg-secondary'}`}>
-                        <Download size={16} />
-                    </button>
-                  </div>
-                ) : (
-                  <p className="leading-relaxed text-[15px]">{msg.text}</p>
-                )}
-                <div className={`flex items-center gap-1.5 mt-1.5 text-[10px] font-medium select-none ${isMe ? 'text-white/70 justify-end' : 'text-muted-foreground justify-start'}`}>
-                  <span>{msg.time}</span>
-                  {isMe && msg.delivered && <CheckCheck size={14} strokeWidth={2} />}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {/* no local echo to avoid duplicates */}
         
         {backendError && (
           <div className="flex justify-center sticky bottom-4 z-10">

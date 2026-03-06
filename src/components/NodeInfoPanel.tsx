@@ -1,6 +1,8 @@
 import { Activity, MessageSquare, FolderOpen, Lock, Key, ShieldCheck, Phone, Video, Paperclip, ShieldX, Copy, MoreHorizontal, Bell, FileText, Share2 } from 'lucide-react';
 import GeometricAvatar from './GeometricAvatar';
-import { getNodeByNodeId } from '@/data/mockData';
+import { useNodeAgentPresencePeers } from '@/hooks/useNodeAgent';
+import { useEffect, useState } from 'react';
+import { nodeAgentApi } from '@/api/nodeAgent';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -10,10 +12,21 @@ interface Props {
 }
 
 const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
-  const node = nodeId ? getNodeByNodeId(nodeId) : null;
+  const { data } = useNodeAgentPresencePeers();
+  const peer = nodeId ? (data?.peers ?? []).find(p => p.payload.peer_id === nodeId) ?? null : null;
+  const [peerInfo, setPeerInfo] = useState<{ p2p_addrs: string[]; fingerprint?: string } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (peer?.payload.peer_id) {
+      nodeAgentApi.peerAddrs(peer.payload.peer_id).then(info => { if (!cancelled) setPeerInfo({ p2p_addrs: info.p2p_addrs, fingerprint: info.fingerprint }); }).catch(() => setPeerInfo(null));
+    } else {
+      setPeerInfo(null);
+    }
+    return () => { cancelled = true };
+  }, [peer?.payload.peer_id]);
   const { toast } = useToast();
 
-  if (!node) {
+  if (!peer) {
     return (
       <div className={`w-[350px] border-l border-white/5 bg-background/60 dark:bg-[#0a0b10]/90 backdrop-blur-xl p-6 flex items-center justify-center ${className}`}>
         <p className="text-sm text-muted-foreground text-center font-medium">Выберите узел для просмотра информации</p>
@@ -22,13 +35,8 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
   }
 
   const copyId = () => {
-    navigator.clipboard.writeText(node.nodeId);
-    toast({ title: 'Скопировано', description: node.nodeId });
-  };
-
-  const copyFingerprint = () => {
-    navigator.clipboard.writeText(node.fingerprint);
-    toast({ title: 'Скопировано', description: node.fingerprint });
+    navigator.clipboard.writeText(peer.payload.peer_id);
+    toast({ title: 'Скопировано', description: peer.payload.peer_id });
   };
 
   return (
@@ -43,15 +51,15 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
                 {/* Profile Card */}
                 <div className="flex flex-col items-center bg-gradient-to-b from-secondary/30 to-background dark:from-[#15181D] dark:to-[#0F1115] border border-white/10 rounded-3xl p-6 shadow-sm relative overflow-hidden group">
                     <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <GeometricAvatar index={node.avatar} size={100} className="shadow-2xl shadow-primary/20" />
+                    <GeometricAvatar index={1} size={100} className="shadow-2xl shadow-primary/20" />
                     <div className="mt-4 text-center relative z-10">
-                        <h2 className="text-xl font-bold tracking-tight">{node.name}</h2>
+                        <h2 className="text-xl font-bold tracking-tight">{peer.payload.display_name || peer.payload.peer_id.substring(0,8)}</h2>
                         <button onClick={copyId} className="flex items-center justify-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/40 px-2 py-1 rounded-md transition-all mt-1 mx-auto cursor-pointer">
-                            {node.nodeId} <Copy size={10} />
+                            {peer.payload.peer_id} <Copy size={10} />
                         </button>
-                        <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${node.online ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-secondary text-muted-foreground border-transparent'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${node.online ? 'bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-muted-foreground'}`} />
-                            {node.online ? 'Online' : 'Offline'}
+                        <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-green-500/10 text-green-600 border-green-500/20">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
+                            Online
                         </div>
                     </div>
                 </div>
@@ -68,33 +76,10 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
                 <div className="space-y-3">
                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Статистика</h3>
                     <div className="grid grid-cols-2 gap-3">
-                        <StatCard 
-                            icon={Activity} 
-                            label="Задержка" 
-                            value={`${node.latency} ms`} 
-                            trend={node.latency < 50 ? 'good' : 'bad'}
-                            subtext="Стабильно"
-                            highlightValue
-                        />
-                        <StatCard 
-                            icon={MessageSquare} 
-                            label="Сообщения" 
-                            value={String(node.messagesSent + node.messagesReceived)}
-                            subtext={`${node.messagesSent} отправлено`}
-                            highlightValue
-                        />
-                        <StatCard 
-                            icon={FolderOpen} 
-                            label="Файлы" 
-                            value={String(node.filesCount)}
-                            subtext={node.filesSize}
-                        />
-                        <StatCard 
-                            icon={ShieldCheck} 
-                            label="Сессия" 
-                            value={node.sessionTime.split(':')[0] + 'ч'}
-                            subtext={node.sessionTime}
-                        />
+                        <StatCard icon={Activity} label="Задержка" value="—" />
+                        <StatCard icon={MessageSquare} label="Сообщения" value="—" />
+                        <StatCard icon={FolderOpen} label="Файлы" value="—" />
+                        <StatCard icon={ShieldCheck} label="Сессия" value="—" />
                     </div>
                 </div>
 
@@ -112,18 +97,18 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
                             </div>
                         </div>
                         <div className="h-px bg-border/40" />
-                        <button onClick={copyFingerprint} className="w-full flex items-center justify-between group">
+                        <div className="w-full flex items-center justify-between group">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-secondary/40 rounded-xl text-muted-foreground group-hover:bg-secondary group-hover:text-foreground transition-colors">
+                                <div className="p-2 bg-secondary/40 rounded-xl text-muted-foreground">
                                     <Key size={18} />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-sm font-semibold group-hover:text-primary transition-colors">Отпечаток</p>
-                                    <p className="text-[10px] text-muted-foreground font-mono truncate w-32 group-hover:text-primary/70">{node.fingerprint}</p>
+                                    <p className="text-sm font-semibold">Отпечаток</p>
+                                    <p className="text-[10px] text-muted-foreground font-mono truncate w-32">{peerInfo?.fingerprint || 'недоступно'}</p>
                                 </div>
                             </div>
-                            <Copy size={14} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </button>
+                            <Copy size={14} className="text-muted-foreground opacity-60" />
+                        </div>
                     </div>
                 </div>
 
@@ -132,6 +117,12 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
                     <div className="flex items-center justify-between">
                          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Медиа и файлы</h3>
                          <button className="text-xs text-primary hover:underline hover:glow-text-blue">Все</button>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground font-mono space-y-1">
+                      {(peerInfo?.p2p_addrs ?? []).map(a => (
+                        <div key={a} className="truncate">{a}</div>
+                      ))}
+                      {(!peerInfo?.p2p_addrs || peerInfo.p2p_addrs.length === 0) && <div>адреса недоступны</div>}
                     </div>
                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
                         <div className="w-20 h-20 bg-secondary/30 dark:bg-[#1a1b20] rounded-xl flex items-center justify-center shrink-0 border border-white/5 hover:border-primary/30 transition-colors">

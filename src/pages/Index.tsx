@@ -11,6 +11,7 @@ import NodeInfoPanel from '@/components/NodeInfoPanel';
 import MobileNav from '@/components/MobileNav';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useSession } from '@/hooks/useSession';
+import { toast } from 'sonner';
 
 interface UserData {
   name: string;
@@ -22,12 +23,12 @@ type AppState = 'loading' | 'registration' | 'main';
 
 const Index = () => {
   const isMobile = useIsMobile();
-  const { sessionState } = useSession();
+  const { sessionState, events } = useSession();
   const [appState, setAppState] = useState<AppState>('loading');
   const [user, setUser] = useState<UserData | null>(null);
   const [activeSection, setActiveSection] = useState<NavSection>('chats');
-  const [activeDialog, setActiveDialog] = useState<string | null>('УЗЛ-4a7c1f9e');
-  const [selectedNode, setSelectedNode] = useState<string | null>('УЗЛ-4a7c1f9e');
+  const [activeDialog, setActiveDialog] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
 
@@ -78,6 +79,32 @@ const Index = () => {
     localStorage.removeItem('svyaz-user');
     setAppState('registration');
   }, []);
+
+  // Global notifications for chat/call events
+  useEffect(() => {
+    const latest = (window as any).__events_notif_cache__ as Set<string> | undefined;
+    if (!latest) (window as any).__events_notif_cache__ = new Set<string>();
+    const cache = (window as any).__events_notif_cache__ as Set<string>;
+    (events.slice(-10)).forEach(ev => {
+      const id = `${ev.type}-${ev.timestamp}`;
+      if (cache.has(id)) return;
+      cache.add(id);
+      if (ev.type === 'chat_message' && ev.env?.payload) {
+        try {
+          const txt = typeof ev.env.payload === 'object' ? ev.env.payload.text : '';
+          if (txt) toast(`Сообщение от ${String(ev.env.sender).slice(0,8)}…`, { description: txt });
+        } catch (_e) { void 0 }
+      }
+      if (ev.type === 'incoming_call' && ev.call) {
+        toast('Входящий звонок', { description: `От ${String(ev.call.peer_id).slice(0,8)}…` });
+      }
+    });
+    // limit cache size
+    if ((window as any).__events_notif_cache__) {
+      const arr = Array.from((window as any).__events_notif_cache__ as Set<string>);
+      if (arr.length > 100) (window as any).__events_notif_cache__ = new Set(arr.slice(-50));
+    }
+  }, [events]);
 
   if (appState === 'loading') {
     return <LoadingScreen onComplete={handleLoadingComplete} />;

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { UploadCloud, File as FileIcon, CheckCircle, AlertCircle, Loader2, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFileTransfers, useSendFile, useNodeAgentPresencePeers } from '@/hooks/useNodeAgent';
+import { nodeAgentApi } from '@/api/nodeAgent';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 
@@ -12,6 +13,8 @@ const FilesPanel = () => {
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [targetPeerId, setTargetPeerId] = useState<string>("");
+  const [rateLimit, setRateLimit] = useState<number>(0);
+  const [peerRate, setPeerRate] = useState<number>(0);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -67,6 +70,37 @@ const FilesPanel = () => {
 
       {/* Upload Area */}
       <div className="space-y-4">
+         <div className="flex items-end gap-3">
+            <div className="flex-1">
+               <label className="text-sm font-medium text-muted-foreground">Rate Limit (bytes/sec, 0 = unlimited)</label>
+               <input type="number" className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-card"
+                 value={rateLimit} onChange={(e) => setRateLimit(Number(e.target.value)||0)} />
+            </div>
+            <Button onClick={async () => {
+              try { 
+                await nodeAgentApi.setRateLimit(rateLimit); 
+                toast.success("Rate limit updated");
+              } catch (e:any) { toast.error("Failed to set rate limit: " + e.message); }
+            }}>Apply</Button>
+         </div>
+         
+         {targetPeerId && (
+           <div className="flex items-end gap-3">
+             <div className="flex-1">
+               <label className="text-sm font-medium text-muted-foreground">Per-peer Rate (bytes/sec) для {targetPeerId.substring(0,8)}…</label>
+               <input type="number" className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-card"
+                 value={peerRate} onChange={(e) => setPeerRate(Number(e.target.value)||0)} />
+             </div>
+             <Button onClick={async () => {
+               try {
+                 await nodeAgentApi.setPeerRateLimit(targetPeerId, peerRate);
+                 toast.success("Peer rate limit updated");
+               } catch (e:any) {
+                 toast.error("Failed to set peer rate: " + e.message);
+               }
+             }}>Apply</Button>
+           </div>
+         )}
          <div className="flex flex-col gap-2">
              <label className="text-sm font-medium text-muted-foreground">Select Recipient</label>
              <Select value={targetPeerId} onValueChange={setTargetPeerId}>
@@ -159,6 +193,23 @@ const FilesPanel = () => {
                 </div>
                 {t.error && (
                     <p className="text-xs text-red-500 mt-1">{t.error}</p>
+                )}
+                {(t.status === 'sending' || t.status === 'receiving') && (
+                  <div className="mt-2">
+                    <Button variant="outline" size="sm" onClick={async () => {
+                      try { await nodeAgentApi.cancelTransfer(t.id); toast("Transfer cancelled"); } catch(e:any){ toast.error(e.message); }
+                    }}>Cancel</Button>
+                    {t.status === 'sending' && (
+                      <>
+                        <Button variant="outline" size="sm" className="ml-2" onClick={async () => {
+                          try { await nodeAgentApi.pauseTransfer(t.id); toast("Paused"); } catch(e:any){ toast.error(e.message); }
+                        }}>Pause</Button>
+                        <Button variant="outline" size="sm" className="ml-2" onClick={async () => {
+                          try { await nodeAgentApi.resumeTransfer(t.id); toast("Resumed"); } catch(e:any){ toast.error(e.message); }
+                        }}>Resume</Button>
+                      </>
+                    )}
+                  </div>
                 )}
              </div>
           </div>

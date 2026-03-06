@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -18,6 +19,8 @@ type Envelope struct {
 	Type      string          `json:"type"`
 	Timestamp int64           `json:"timestamp"`
 	Sender    string          `json:"sender"`
+	TTL       int             `json:"ttl,omitempty"`
+	AckFor    string          `json:"ack_for,omitempty"`
 	Payload   json.RawMessage `json:"payload"`
 	Signature []byte          `json:"signature"`
 }
@@ -59,6 +62,10 @@ func Verify(pub crypto.PubKey, e Envelope) (bool, error) {
 }
 
 type ChatHandler struct {
+	mu       sync.Mutex
+	seen     map[string]struct{}
+	OnMsg    func(e Envelope)
+	OnAck    func(e Envelope)
 }
 
 func (h *ChatHandler) ProtocolID(id string) protocol.ID {
@@ -78,7 +85,43 @@ func (h *ChatHandler) HandleStream(stream network.Stream) {
 			}
 			return
 		}
-		_ = line
+		var env Envelope
+		if err := json.Unmarshal(line, &env); err != nil {
+			continue
+		}
+		// Dedup by ID
+		h.mu.Lock()
+		if h.seen == nil {
+			h.seen = make(map[string]struct{}, 1024)
+		}
+		if _, ok := h.seen[env.ID]; ok {
+			h.mu.Unlock()
+			continue
+		}
+		h.seen[env.ID] = struct{}{}
+		h.mu.Unlock()
+
+		switch env.Type {
+		case "chat":
+			if h.OnMsg != nil {
+				h.OnMsg(env)
+			}
+			// Send ACK back
+			ack := Envelope{
+				ID:        env.ID + "/ack",
+				Type:      "ack",
+				Timestamp: time.Now().UnixMilli(),
+				Sender:    env.Sender, // sender echoed for simplicity
+				AckFor:    env.ID,
+			}
+			_ = WriteEnvelope(context.Background(), stream, ack)
+		case "ack":
+			if h.OnAck != nil {
+				h.OnAck(env)
+			}
+		default:
+			// ignore
+		}
 	}
 }
 

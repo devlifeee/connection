@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { MessageSquare, Phone, Wifi, WifiOff, Shield } from 'lucide-react';
 import GeometricAvatar from './GeometricAvatar';
-import { nodes } from '@/data/mockData';
 import { runtimeLayers, presenceFields, protocolIds } from '@/content/backendBlueprint';
 import { useNodeAgentPeers, useNodeAgentPresencePeers } from "@/hooks/useNodeAgent";
 
@@ -12,15 +11,15 @@ interface Props {
 
 const NodesPanel = ({ onChatWith, userAvatar }: Props) => {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
-  const onlineCount = nodes.filter(n => n.online).length;
-  const avgLatency = Math.round(nodes.filter(n => n.online).reduce((a, b) => a + b.latency, 0) / (onlineCount || 1));
   const peers = useNodeAgentPeers();
   const presencePeers = useNodeAgentPresencePeers();
+  const presence = presencePeers.data?.peers ?? [];
+  const onlineCount = presence.length;
 
   // SVG graph positions
   const centerX = 200, centerY = 140;
-  const nodePositions = nodes.map((_, i) => {
-    const angle = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
+  const nodePositions = presence.map((_, i) => {
+    const angle = (i / Math.max(1, presence.length)) * Math.PI * 2 - Math.PI / 2;
     return { x: centerX + Math.cos(angle) * 100, y: centerY + Math.sin(angle) * 80 };
   });
 
@@ -30,7 +29,7 @@ const NodesPanel = ({ onChatWith, userAvatar }: Props) => {
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span>{onlineCount + 1} узлов онлайн</span>
         <span>·</span>
-        <span>Средняя задержка: {avgLatency} мс</span>
+        <span>Средняя задержка: —</span>
         <span>·</span>
         <span className="flex items-center gap-1"><Shield size={12} className="text-primary" /> Шифрование активно</span>
       </div>
@@ -141,10 +140,10 @@ const NodesPanel = ({ onChatWith, userAvatar }: Props) => {
             <line
               key={`line-${i}`}
               x1={centerX} y1={centerY} x2={pos.x} y2={pos.y}
-              stroke={nodes[i].online ? 'hsl(217, 89%, 63%)' : 'hsl(0, 0%, 20%)'}
+              stroke={'hsl(217, 89%, 63%)'}
               strokeWidth="1.5"
-              opacity={nodes[i].online ? 0.5 : 0.2}
-              className={nodes[i].online ? 'animate-network-pulse' : ''}
+              opacity={0.5}
+              className={'animate-network-pulse'}
               style={{ animationDelay: `${i * 0.5}s` }}
             />
           ))}
@@ -157,23 +156,23 @@ const NodesPanel = ({ onChatWith, userAvatar }: Props) => {
           {/* Other nodes */}
           {nodePositions.map((pos, i) => (
             <g key={i}
-              onMouseEnter={() => setHoveredNode(nodes[i].nodeId)}
+              onMouseEnter={() => setHoveredNode(presence[i].payload.peer_id)}
               onMouseLeave={() => setHoveredNode(null)}
               className="cursor-pointer"
             >
               <circle cx={pos.x} cy={pos.y} r="10"
-                fill={nodes[i].online ? 'hsl(var(--primary))' : 'hsl(var(--muted))'}
-                opacity={nodes[i].online ? 0.8 : 0.4}
+                fill={'hsl(var(--primary))'}
+                opacity={0.8}
               />
               <text x={pos.x} y={pos.y + 22} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize="9">
-                {nodes[i].name.split(' ')[0]}
+                {(presence[i].payload.display_name || presence[i].payload.peer_id).split(' ')[0]}
               </text>
-              {hoveredNode === nodes[i].nodeId && (
+              {hoveredNode === presence[i].payload.peer_id && (
                 <g>
                   <rect x={pos.x - 60} y={pos.y - 50} width="120" height="35" rx="4" fill="hsl(var(--popover))" stroke="hsl(var(--border))" />
-                  <text x={pos.x} y={pos.y - 37} textAnchor="middle" fill="hsl(var(--foreground))" fontSize="9">{nodes[i].name}</text>
-                  <text x={pos.x} y={pos.y - 25} textAnchor="middle" fill="hsl(var(--primary))" fontSize="8" fontFamily="JetBrains Mono">{nodes[i].nodeId}</text>
-                  <text x={pos.x} y={pos.y - 15} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize="8">{nodes[i].latency} мс</text>
+                  <text x={pos.x} y={pos.y - 37} textAnchor="middle" fill="hsl(var(--foreground))" fontSize="9">{presence[i].payload.display_name || 'unknown'}</text>
+                  <text x={pos.x} y={pos.y - 25} textAnchor="middle" fill="hsl(var(--primary))" fontSize="8" fontFamily="JetBrains Mono">{presence[i].payload.peer_id.substring(0,10)}…</text>
+                  <text x={pos.x} y={pos.y - 15} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize="8">online</text>
                 </g>
               )}
             </g>
@@ -183,30 +182,26 @@ const NodesPanel = ({ onChatWith, userAvatar }: Props) => {
 
       {/* Node cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {nodes.map(n => (
-          <div key={n.id} className="bg-card rounded-lg border border-border p-4">
+        {presence.map(p => {
+          const name = p.payload.display_name || p.payload.peer_id.substring(0,8);
+          const peerId = p.payload.peer_id;
+          const ageSec = Math.max(0, Math.round((Date.now() - p.last_seen_ms) / 1000));
+          return (
+          <div key={peerId} className="bg-card rounded-lg border border-border p-4">
             <div className="flex items-center gap-3 mb-3">
-              <GeometricAvatar index={n.avatar} size={40} />
+              <GeometricAvatar index={1} size={40} />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">{n.name}</p>
-                <p className="font-mono text-xs text-primary truncate">{n.nodeId}</p>
-                <p className="font-mono text-[10px] text-muted-foreground">{n.ip}</p>
+                <p className="text-sm font-medium">{name}</p>
+                <p className="font-mono text-xs text-primary truncate">{peerId}</p>
+                <p className="font-mono text-[10px] text-muted-foreground">seen {ageSec}s</p>
               </div>
-              {n.online ? (
-                <Wifi size={16} className="text-primary shrink-0" />
-              ) : (
-                <WifiOff size={16} className="text-destructive shrink-0" />
-              )}
+              <Wifi size={16} className="text-primary shrink-0" />
             </div>
             <div className="flex items-center justify-between">
-              <span className={`text-xs font-mono ${
-                n.latency <= 30 ? 'text-primary' : n.latency <= 100 ? 'text-muted-foreground' : 'text-destructive'
-              }`}>
-                {n.latency} мс
-              </span>
+              <span className="text-xs font-mono text-muted-foreground">cap: {(p.payload.capabilities||[]).join(', ') || '—'}</span>
               <div className="flex gap-2">
                 <button
-                  onClick={() => onChatWith(n.nodeId)}
+                  onClick={() => onChatWith(peerId)}
                   className="text-muted-foreground hover:text-primary"
                   title="Написать"
                 >
@@ -218,7 +213,7 @@ const NodesPanel = ({ onChatWith, userAvatar }: Props) => {
               </div>
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );

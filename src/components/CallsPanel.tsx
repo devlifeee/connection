@@ -19,6 +19,12 @@ const CallsPanel = () => {
   const [callTimer, setCallTimer] = useState('00:00');
   const [micEnabled, setMicEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(false);
+  const [metrics, setMetrics] = useState<{
+    rtt?: number;
+    audio?: { jitter?: number; inboundLoss?: number; bitrateKbps?: number };
+    video?: { jitter?: number; inboundLoss?: number; bitrateKbps?: number };
+    quality?: 'good' | 'medium' | 'poor';
+  } | null>(null);
   
   // Track processed events to avoid duplicates
   const processedEvents = useRef<Set<string>>(new Set());
@@ -164,7 +170,7 @@ const CallsPanel = () => {
           event.type === 'hangup') {
         console.log('Processing new media event:', event.type, eventId);
         processedEvents.current.add(eventId);
-        handleEvent(event as MediaEvent);
+        handleEvent(event as unknown as MediaEvent);
         
         // Clean up old processed events (keep last 50)
         if (processedEvents.current.size > 50) {
@@ -338,6 +344,7 @@ const CallsPanel = () => {
     setCallTimer('00:00');
     setVideoEnabled(false);
     setMicEnabled(true);
+    setMetrics(null);
   };
 
   const startTimer = () => {
@@ -350,6 +357,70 @@ const CallsPanel = () => {
           setCallTimer(`${m}:${sec}`);
       }, 1000);
   };
+  
+  // Collect WebRTC stats while connected
+  useEffect(() => {
+    let interval: any = null;
+    if (callState === 'connected' && peerConnection.current) {
+      interval = setInterval(async () => {
+        try {
+          const stats = await peerConnection.current!.getStats();
+          let rtt: number | undefined;
+          const audio = { jitter: 0, inboundLoss: 0, bitrateKbps: 0 };
+          const video = { jitter: 0, inboundLoss: 0, bitrateKbps: 0 };
+          let audioPackets = 0, audioLost = 0;
+          let videoPackets = 0, videoLost = 0;
+          const last = (window as any).__webrtc_prev__ || {};
+          const nowCounters: Record<string, any> = {};
+          stats.forEach((report: any) => {
+            if (report.type === 'transport' && report.rtt) {
+              rtt = report.rtt * 1000;
+            }
+            if (report.type === 'inbound-rtp') {
+              if (report.kind === 'audio') {
+                audioPackets += report.packetsReceived || 0;
+                audioLost += report.packetsLost || 0;
+                if (typeof report.jitter === 'number') audio.jitter = Math.max(audio.jitter, report.jitter * 1000);
+              }
+              if (report.kind === 'video') {
+                videoPackets += report.packetsReceived || 0;
+                videoLost += report.packetsLost || 0;
+                if (typeof report.jitter === 'number') video.jitter = Math.max(video.jitter, report.jitter * 1000);
+              }
+            }
+            if (report.type === 'outbound-rtp') {
+              const key = report.id;
+              nowCounters[key] = { bytesSent: report.bytesSent, timestamp: report.timestamp, kind: report.kind };
+              const prev = last[key];
+              if (prev && report.timestamp > prev.timestamp) {
+                const dt = (report.timestamp - prev.timestamp) / 1000;
+                const dBytes = (report.bytesSent || 0) - (prev.bytesSent || 0);
+                const kbps = dt > 0 ? (dBytes * 8) / 1000 / dt : 0;
+                if (report.kind === 'audio') audio.bitrateKbps = Math.max(audio.bitrateKbps, kbps);
+                if (report.kind === 'video') video.bitrateKbps = Math.max(video.bitrateKbps, kbps);
+              }
+            }
+          });
+          (window as any).__webrtc_prev__ = nowCounters;
+          audio.inboundLoss = audioPackets > 0 ? (audioLost / audioPackets) * 100 : 0;
+          video.inboundLoss = videoPackets > 0 ? (videoLost / videoPackets) * 100 : 0;
+          const quality = ((): 'good' | 'medium' | 'poor' => {
+            const jit = Math.max(audio.jitter || 0, video.jitter || 0);
+            const loss = Math.max(audio.inboundLoss || 0, video.inboundLoss || 0);
+            if (loss < 1 && jit < 20) return 'good';
+            if (loss < 5 && jit < 50) return 'medium';
+            return 'poor';
+          })();
+          setMetrics({ rtt, audio, video, quality });
+        } catch (e) {
+          // ignore
+        }
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [callState]);
   
   const toggleMic = () => {
       if (localStream.current) {
@@ -502,6 +573,16 @@ const CallsPanel = () => {
                   <div className={`flex items-center justify-center gap-2 text-xs ${currentCall?.type === 'video' && callState === 'connected' ? 'text-white/70' : 'text-muted-foreground'}`}>
                       <Lock size={12} /> End-to-end encrypted
                   </div>
+                  {metrics && callState === 'connected' && (
+                    <div className="mt-2 text-xs font-mono opacity-80">
+                      <span className="px-2 py-0.5 rounded bg-secondary/40 mr-1">RTT: {metrics.rtt ? Math.round(metrics.rtt) : '—'}ms</span>
+                      <span className="px-2 py-0.5 rounded bg-secondary/40 mr-1">A-Jit: {metrics.audio?.jitter ? Math.round(metrics.audio.jitter) : '—'}ms</span>
+                      <span className="px-2 py-0.5 rounded bg-secondary/40 mr-1">A-Loss: {metrics.audio?.inboundLoss?.toFixed(1) ?? '0.0'}%</span>
+                      <span className="px-2 py-0.5 rounded bg-secondary/40 mr-1">V-Jit: {metrics.video?.jitter ? Math.round(metrics.video.jitter) : '—'}ms</span>
+                      <span className="px-2 py-0.5 rounded bg-secondary/40 mr-1">V-Loss: {metrics.video?.inboundLoss?.toFixed(1) ?? '0.0'}%</span>
+                      <span className={`px-2 py-0.5 rounded ${metrics.quality === 'good' ? 'bg-green-500/20 text-green-500' : metrics.quality === 'medium' ? 'bg-yellow-500/20 text-yellow-500' : 'bg-red-500/20 text-red-500'}`}>Quality: {metrics.quality}</span>
+                    </div>
+                  )}
               </div>
 
               <div className="flex items-center gap-6 mt-8">

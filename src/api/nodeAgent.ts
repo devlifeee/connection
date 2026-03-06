@@ -176,12 +176,15 @@ export type ChatEnvelope = {
   type: string;
   timestamp: number;
   sender: string;
+  ttl?: number;
+  ack_for?: string;
   payload: { text?: string } | null;
 };
 
 export type ChatHistoryResponse = {
   peer_id: string;
   messages: ChatEnvelope[];
+  read_up_to?: string;
 };
 
 export const nodeAgentApi = {
@@ -194,6 +197,8 @@ export const nodeAgentApi = {
   sendChat: (body: ChatSendRequest) => postJson<ChatSendRequest, ChatSendResponse>("/chat/send", body),
   chatHistory: (peerId: string, limit = 50) =>
     getJson<ChatHistoryResponse>(`/chat/history?peer_id=${encodeURIComponent(peerId)}&limit=${limit}`),
+  chatRead: (peerId: string, lastId: string) =>
+    postJson<{peer_id: string, last_id: string}, {ok: boolean}>(`/chat/read`, { peer_id: peerId, last_id: lastId }),
   
   // Session management
   getSessions: () => getJson<SessionsResponse>("/sessions"),
@@ -228,6 +233,12 @@ export const nodeAgentApi = {
   },
   
   getTransfers: () => getJson<FileTransfersResponse>("/files/transfers"),
+  setRateLimit: (bps: number) => postJson<{bps: number}, {ok: boolean}>("/files/set_rate_limit", { bps }),
+  cancelTransfer: (id: string) => postJson<{id: string}, {ok: boolean}>("/files/cancel", { id }),
+  setPeerRateLimit: (peerId: string, bps: number) => postJson<{peer_id: string, bps: number}, {ok: boolean}>("/files/set_rate_limit_peer", { peer_id: peerId, bps }),
+  pauseTransfer: (id: string) => postJson<{id: string}, {ok: boolean}>("/files/pause", { id }),
+  resumeTransfer: (id: string) => postJson<{id: string}, {ok: boolean}>("/files/resume", { id }),
+  peerAddrs: (peerId: string) => getJson<{peer_id: string; p2p_addrs: string[]; fingerprint?: string}>(`/peer/addrs?peer_id=${encodeURIComponent(peerId)}`),
 
   // Media API
   initiateCall: (peerId: string, sdp: string, type: "audio" | "video") => postJson<{peer_id: string, sdp: string, type: string}, {ok: boolean, call: Call}>("/media/call", {peer_id: peerId, sdp, type}),

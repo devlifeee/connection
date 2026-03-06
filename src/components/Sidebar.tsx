@@ -1,6 +1,7 @@
 import { MessageSquare, FolderOpen, Phone, Network, Settings, LogOut, Search } from 'lucide-react';
 import GeometricAvatar from './GeometricAvatar';
-import { dialogs, getNodeByNodeId } from '@/data/mockData';
+import { useNodeAgentPresencePeers } from "@/hooks/useNodeAgent";
+import { useSession } from "@/hooks/useSession";
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export type NavSection = 'chats' | 'files' | 'calls' | 'nodes' | 'settings';
@@ -23,7 +24,30 @@ const navItems: { id: NavSection; icon: typeof MessageSquare; label: string }[] 
   { id: 'settings', icon: Settings, label: 'Настройки' },
 ];
 
+import { useEffect, useMemo, useState } from 'react';
+
 const Sidebar = ({ user, activeSection, onSectionChange, activeDialog, onDialogSelect, className = '', onLogout }: Props) => {
+  const { events } = useSession();
+  const [unread, setUnread] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const latest = events.slice(-10);
+    for (const ev of latest) {
+      if (ev.type === 'chat_message' && ev.env?.sender) {
+        const sender = String(ev.env.sender);
+        if (activeDialog && sender === activeDialog) continue;
+        setUnread(prev => ({ ...prev, [sender]: (prev[sender] || 0) + 1 }));
+      }
+    }
+  }, [events, activeDialog]);
+  const clearUnread = (peerId: string) => {
+    setUnread(prev => {
+      if (!prev[peerId]) return prev;
+      const n = { ...prev };
+      delete n[peerId];
+      return n;
+    });
+  };
+  const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
   return (
     <div className={`w-[320px] bg-background/80 dark:bg-card/90 backdrop-blur-xl flex flex-col h-full border-r border-border/40 shadow-xl z-20 ${className}`}>
       {/* App Title */}
@@ -51,8 +75,8 @@ const Sidebar = ({ user, activeSection, onSectionChange, activeDialog, onDialogS
           >
             <item.icon size={18} strokeWidth={2} />
             <span>{item.label}</span>
-            {item.id === 'chats' && (
-               <span className="ml-auto bg-secondary/50 text-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-md">3</span>
+            {item.id === 'chats' && totalUnread > 0 && (
+               <span className="ml-auto bg-primary/15 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-md">{totalUnread}</span>
             )}
           </button>
         ))}
@@ -71,50 +95,7 @@ const Sidebar = ({ user, activeSection, onSectionChange, activeDialog, onDialogS
                     />
                 </div>
             </div>
-            <ScrollArea className="flex-1 px-2">
-                <div className="space-y-1 p-2">
-                    {dialogs.map(dialog => {
-                        const node = getNodeByNodeId(dialog.nodeId);
-                        if (!node) return null;
-                        const isActive = activeDialog === dialog.nodeId;
-                        
-                        return (
-                            <button
-                                key={dialog.nodeId}
-                                onClick={() => onDialogSelect(dialog.nodeId)}
-                                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 text-left group ${
-                                    isActive 
-                                    ? 'bg-secondary/40 shadow-sm' 
-                                    : 'hover:bg-secondary/40'
-                                }`}
-                            >
-                                <div className="relative shrink-0">
-                                    <GeometricAvatar index={node.avatar} size={44} selected={isActive} />
-                                    {node.online && (
-                                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500/80 border-2 border-background rounded-full" />
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between mb-0.5">
-                                        <span className={`text-sm font-semibold truncate ${isActive ? 'text-foreground' : 'text-foreground'}`}>
-                                            {node.name}
-                                        </span>
-                                        <span className="text-[10px] text-muted-foreground font-medium opacity-70">{dialog.time}</span>
-                                    </div>
-                                    <p className={`text-xs truncate leading-relaxed text-muted-foreground`}>
-                                        {dialog.lastMessage}
-                                    </p>
-                                </div>
-                                {dialog.unread > 0 && (
-                                    <div className="shrink-0 flex items-center justify-center w-5 h-5 bg-secondary/60 text-foreground text-[10px] font-bold rounded-full">
-                                        {dialog.unread}
-                                    </div>
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
-            </ScrollArea>
+            <PresenceChatList activeDialog={activeDialog} onSelect={(id) => { clearUnread(id); onDialogSelect(id); }} unread={unread} />
         </div>
       )}
 
@@ -146,3 +127,51 @@ const Sidebar = ({ user, activeSection, onSectionChange, activeDialog, onDialogS
 };
 
 export default Sidebar;
+
+function PresenceChatList({ activeDialog, onSelect, unread }: { activeDialog: string | null; onSelect: (peerId: string) => void; unread: Record<string, number> }) {
+  const { data, isLoading } = useNodeAgentPresencePeers();
+  const peers = data?.peers ?? [];
+  return (
+    <ScrollArea className="flex-1 px-2">
+      <div className="space-y-1 p-2">
+        {isLoading && <div className="text-xs text-muted-foreground px-2 py-1">Загрузка…</div>}
+        {(!peers.length && !isLoading) && <div className="text-xs text-muted-foreground px-2 py-1">В сети никого нет</div>}
+        {peers.map(p => {
+          const peerId = p.payload.peer_id;
+          const name = p.payload.display_name || peerId.substring(0, 8);
+          const isActive = activeDialog === peerId;
+          const count = unread[peerId] || 0;
+          return (
+            <button
+              key={peerId}
+              onClick={() => onSelect(peerId)}
+              className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 text-left group ${
+                isActive ? 'bg-secondary/40 shadow-sm' : 'hover:bg-secondary/40'
+              }`}
+            >
+              <div className="relative shrink-0">
+                <GeometricAvatar index={1} size={44} />
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500/80 border-2 border-background rounded-full" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-sm font-semibold truncate">
+                    {name}
+                  </span>
+                  {count > 0 && (
+                    <span className="ml-2 bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                      {count}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs truncate leading-relaxed text-muted-foreground">
+                  Готов к связи
+                </p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </ScrollArea>
+  );
+}
