@@ -116,11 +116,37 @@ const Index = () => {
   const renderMainContent = () => {
     switch (activeSection) {
       case 'chats':
-        return <ChatPanel dialogNodeId={activeDialog} onSelectNode={setSelectedNode} onToggleInfoPanel={() => setShowInfoPanel(v => !v)} />;
+        return <ChatPanel 
+          dialogNodeId={activeDialog} 
+          onSelectNode={setSelectedNode} 
+          onToggleInfoPanel={() => setShowInfoPanel(v => !v)}
+          onStartCall={(video) => {
+             setActiveSection('calls');
+             // We need to pass target peer to calls panel, but currently calls panel manages its own state
+             // In a real app we would use a global call context or URL params
+             // For now, let's just switch tab. The user will need to select peer again or we need to refactor CallsPanel to accept props
+             // To fix this properly, let's save intent to localStorage so CallsPanel can pick it up
+             if (activeDialog) {
+                 localStorage.setItem('svyaz-call-intent', JSON.stringify({ peerId: activeDialog, video }));
+             }
+          }}
+        />;
       case 'files':
         return <FilesPanel />;
       case 'calls':
-        return <CallsPanel />;
+        // Check for call intent on mount
+        const intent = localStorage.getItem('svyaz-call-intent');
+        let initialPeerId = null;
+        let autoVideo = false;
+        if (intent) {
+            try {
+                const data = JSON.parse(intent);
+                initialPeerId = data.peerId;
+                autoVideo = data.video;
+                localStorage.removeItem('svyaz-call-intent');
+            } catch {}
+        }
+        return <CallsPanel initialPeerId={initialPeerId} autoStart={!!initialPeerId} autoVideo={autoVideo} />;
       case 'nodes':
         return <NodesPanel onChatWith={handleChatWith} userAvatar={user!.avatar} />;
       case 'settings':

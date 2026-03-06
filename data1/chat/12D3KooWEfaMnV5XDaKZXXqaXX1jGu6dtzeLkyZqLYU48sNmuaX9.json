@@ -1,0 +1,104 @@
+{
+  "messages": [
+    {
+      "id": "1772827261857984000/ack",
+      "type": "ack",
+      "timestamp": 1772827261859,
+      "sender": "12D3KooWFQuZHxvVpvUuvQx73a3wpyZxv5hbYCUDvbkGeBGUDGsb",
+      "ack_for": "1772827261857984000",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772827261857984000",
+      "type": "chat",
+      "timestamp": 1772827261857,
+      "sender": "12D3KooWFQuZHxvVpvUuvQx73a3wpyZxv5hbYCUDvbkGeBGUDGsb",
+      "ttl": 8,
+      "payload": {
+        "text": "привет"
+      },
+      "signature": "dSbDPZuzVkdikQSDTy17yVuURjSEvuzjevEE4qtj9aOD0gccw5SO93JODEw4g6Jyh+BVjQROZq3M/r5fm0MACw=="
+    },
+    {
+      "id": "1772827271078910900/ack",
+      "type": "ack",
+      "timestamp": 1772827271079,
+      "sender": "12D3KooWFQuZHxvVpvUuvQx73a3wpyZxv5hbYCUDvbkGeBGUDGsb",
+      "ack_for": "1772827271078910900",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772827271078910900",
+      "type": "chat",
+      "timestamp": 1772827271078,
+      "sender": "12D3KooWFQuZHxvVpvUuvQx73a3wpyZxv5hbYCUDvbkGeBGUDGsb",
+      "ttl": 8,
+      "payload": {
+        "text": "привет"
+      },
+      "signature": "oMu2iPHS+KZi9kiW/Y/lqRF0GMXaGGM81nDtjDzqg/sJWD8Iq5TmjoAoiRY4ntN2KDtgPmrSAeV7dIehcVfmCQ=="
+    },
+    {
+      "id": "1772827296906901200/ack",
+      "type": "ack",
+      "timestamp": 1772827296909,
+      "sender": "12D3KooWFQuZHxvVpvUuvQx73a3wpyZxv5hbYCUDvbkGeBGUDGsb",
+      "ack_for": "1772827296906901200",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772827296906901200",
+      "type": "chat",
+      "timestamp": 1772827296906,
+      "sender": "12D3KooWFQuZHxvVpvUuvQx73a3wpyZxv5hbYCUDvbkGeBGUDGsb",
+      "ttl": 8,
+      "payload": {
+        "text": "п"
+      },
+      "signature": "MUztHU6/8XVoPYDDeQeZ4hmDW8FdejPnttCyycN/0wX2VX8Ka0FpRuhF6cKBebB3a20pwTk8+hEg2J3fyvbzAQ=="
+    },
+    {
+      "id": "1772827320079054900/ack",
+      "type": "ack",
+      "timestamp": 1772827320081,
+      "sender": "12D3KooWFQuZHxvVpvUuvQx73a3wpyZxv5hbYCUDvbkGeBGUDGsb",
+      "ack_for": "1772827320079054900",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772827320079054900",
+      "type": "chat",
+      "timestamp": 1772827320079,
+      "sender": "12D3KooWFQuZHxvVpvUuvQx73a3wpyZxv5hbYCUDvbkGeBGUDGsb",
+      "ttl": 8,
+      "payload": {
+        "text": "ку"
+      },
+      "signature": "VBv/cdBpYMjfDmbX0TCtD/gsf1EBFQLgVDlS0/ok9cdoZZ86tTIigP56jbWgAkB9Iw/bI+DDLtABRYzLpTzFAw=="
+    },
+    {
+      "id": "1772827325979236500/ack",
+      "type": "ack",
+      "timestamp": 1772827325981,
+      "sender": "12D3KooWFQuZHxvVpvUuvQx73a3wpyZxv5hbYCUDvbkGeBGUDGsb",
+      "ack_for": "1772827325979236500",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772827325979236500",
+      "type": "chat",
+      "timestamp": 1772827325979,
+      "sender": "12D3KooWFQuZHxvVpvUuvQx73a3wpyZxv5hbYCUDvbkGeBGUDGsb",
+      "ttl": 8,
+      "payload": {
+        "text": "единица"
+      },
+      "signature": "R3CRPeL1/NXrRbetLOjWloz6qEQTVKq0vETI5EAwcIST0kCIG6yP5VUWkH99yiPA9+QLCEGGkR5aNK+Qs/CuAA=="
+    }
+  ]
+}
