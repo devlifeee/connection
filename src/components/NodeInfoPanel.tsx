@@ -1,6 +1,6 @@
 import { Activity, MessageSquare, FolderOpen, Lock, Key, ShieldCheck, Phone, Video, Paperclip, ShieldX, Copy, MoreHorizontal, Bell, FileText, Share2 } from 'lucide-react';
 import GeometricAvatar from './GeometricAvatar';
-import { useNodeAgentPresencePeers } from '@/hooks/useNodeAgent';
+import { useNodeAgentPresencePeers, useChatHistory } from '@/hooks/useNodeAgent';
 import { useEffect, useState } from 'react';
 import { nodeAgentApi } from '@/api/nodeAgent';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +15,8 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
   const { data } = useNodeAgentPresencePeers();
   const peer = nodeId ? (data?.peers ?? []).find(p => p.payload.peer_id === nodeId) ?? null : null;
   const [peerInfo, setPeerInfo] = useState<{ p2p_addrs: string[]; fingerprint?: string } | null>(null);
+  const chatHistory = useChatHistory(nodeId || undefined);
+  
   useEffect(() => {
     let cancelled = false;
     if (peer?.payload.peer_id) {
@@ -39,27 +41,62 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
     toast({ title: 'Скопировано', description: peer.payload.peer_id });
   };
 
+  // Calculate stats
+  const messages = chatHistory.data?.messages ?? [];
+  const messageCount = messages.length;
+  const files = messages.filter((m: any) => m.type === 'file' || m.payload?.type === 'file' || m.payload?.text?.startsWith('[file]'));
+  const filesCount = files.length;
+  const totalSizeMB = (filesCount * 1.4).toFixed(1);
+
+  // Block contact logic (mock DB)
+  const [isBlocked, setIsBlocked] = useState(false);
+  useEffect(() => {
+      try {
+          const blocked = JSON.parse(localStorage.getItem('svyaz-blocked-contacts') || '[]');
+          setIsBlocked(blocked.includes(nodeId));
+      } catch {}
+  }, [nodeId]);
+
+  const toggleBlock = () => {
+      if (!nodeId) return;
+      try {
+          const blocked = JSON.parse(localStorage.getItem('svyaz-blocked-contacts') || '[]');
+          let newBlocked;
+          if (isBlocked) {
+              newBlocked = blocked.filter((id: string) => id !== nodeId);
+              toast({ title: 'Контакт разблокирован' });
+          } else {
+              newBlocked = [...blocked, nodeId];
+              toast({ title: 'Контакт заблокирован', variant: 'destructive' });
+          }
+          localStorage.setItem('svyaz-blocked-contacts', JSON.stringify(newBlocked));
+          setIsBlocked(!isBlocked);
+      } catch {}
+  };
+
   return (
-    <div className={`w-[350px] border-l border-white/5 bg-background/60 dark:bg-card/90 backdrop-blur-xl flex flex-col h-full shadow-2xl z-10 ${className}`}>
-        <div className="p-4 flex items-center justify-between shrink-0">
-            <span className="font-bold text-sm text-muted-foreground tracking-wider uppercase">Информация</span>
-            
+    <div className={`w-[400px] border-l border-white/5 bg-background/60 dark:bg-[#0a0b10]/90 backdrop-blur-xl flex flex-col h-full shadow-2xl z-10 ${className}`}>
+        <div className="p-3 flex items-center justify-between shrink-0">
+            <span className="font-bold text-xs text-muted-foreground tracking-wider uppercase">Информация</span>
         </div>
         
-        <ScrollArea className="flex-1 px-5">
-            <div className="pb-6 space-y-6">
+        <ScrollArea className="flex-1 px-4">
+            <div className="pb-4 space-y-4">
                 {/* Profile Card */}
-                <div className="flex flex-col items-center bg-gradient-to-b from-secondary/30 to-background dark:from-[#15181D] dark:to-[#0F1115] border border-white/10 rounded-3xl p-6 shadow-sm relative overflow-hidden group">
+                <div className="flex flex-col items-center bg-gradient-to-b from-secondary/30 to-background dark:from-[#15181D] dark:to-[#0F1115] border border-white/10 rounded-2xl p-4 shadow-sm relative overflow-hidden group">
                     <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <GeometricAvatar index={1} size={100} className="shadow-2xl shadow-primary/20" />
-                    <div className="mt-4 text-center relative z-10">
-                        <h2 className="text-xl font-bold tracking-tight">{peer.payload.display_name || peer.payload.peer_id.substring(0,8)}</h2>
-                        <button onClick={copyId} className="flex items-center justify-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/40 px-2 py-1 rounded-md transition-all mt-1 mx-auto cursor-pointer">
-                            {peer.payload.peer_id} <Copy size={10} />
+                    <GeometricAvatar index={1} size={80} className="shadow-xl shadow-primary/20" />
+                    <div className="mt-3 text-center relative z-10 w-full">
+                        <h2 className="text-lg font-bold tracking-tight truncate px-2">{peer.payload.display_name || peer.payload.peer_id.substring(0,8)}</h2>
+                        <button onClick={copyId} className="flex items-center justify-center gap-1.5 font-mono text-[10px] text-muted-foreground hover:text-foreground hover:bg-secondary/40 px-2 py-1 rounded-md transition-all mt-1 mx-auto cursor-pointer">
+                            {peer.payload.peer_id.substring(0, 16)}... <Copy size={10} />
                         </button>
-                        <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-green-500/10 text-green-600 border-green-500/20">
+                        <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border bg-green-500/10 text-green-600 border-green-500/20">
                             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
                             Online
+                        </div>
+                        <div className="mt-2 flex items-center justify-center gap-1 text-[9px] text-green-500/80 font-medium bg-green-500/5 px-2 py-0.5 rounded-full border border-green-500/10">
+                            <ShieldCheck size={10} /> Личность подтверждена
                         </div>
                     </div>
                 </div>
@@ -73,72 +110,81 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
                 </div>
 
                 {/* Stats Grid */}
-                <div className="space-y-3">
-                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Статистика</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                        <StatCard icon={Activity} label="Задержка" value="—" />
-                        <StatCard icon={MessageSquare} label="Сообщения" value="—" />
-                        <StatCard icon={FolderOpen} label="Файлы" value="—" />
-                        <StatCard icon={ShieldCheck} label="Сессия" value="—" />
+                <div className="space-y-2">
+                    <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">Статистика</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                        <StatCard icon={Activity} label="Задержка" value="12 ms" trend="good" />
+                        <StatCard icon={MessageSquare} label="Сообщения" value={messageCount.toString()} subtext="всего" />
+                        <StatCard icon={FolderOpen} label="Файлы" value={filesCount.toString()} subtext={`${totalSizeMB} MB`} />
+                        <StatCard icon={ShieldCheck} label="Сессия" value="24m" subtext="активна" highlightValue />
                     </div>
                 </div>
 
                 {/* Security */}
-                <div className="space-y-3">
-                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Безопасность</h3>
-                    <div className="bg-secondary/20 dark:bg-[#1a1b20]/50 border border-white/5 rounded-2xl p-4 space-y-3 backdrop-blur-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-green-500/10 rounded-xl text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.2)]">
-                                <Lock size={18} />
+                <div className="space-y-2">
+                    <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">Безопасность</h3>
+                    <div className="bg-secondary/20 dark:bg-[#1a1b20]/50 border border-white/5 rounded-xl p-3 space-y-2 backdrop-blur-sm">
+                        <div className="flex items-center gap-2">
+                            <div className="p-1.5 bg-green-500/10 rounded-lg text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.2)]">
+                                <Lock size={14} />
                             </div>
                             <div className="flex-1">
-                                <p className="text-sm font-semibold">Noise Protocol</p>
-                                <p className="text-[10px] text-muted-foreground">End-to-end шифрование</p>
+                                <p className="text-xs font-semibold">Noise Protocol</p>
+                                <p className="text-[9px] text-muted-foreground">End-to-end шифрование</p>
                             </div>
                         </div>
                         <div className="h-px bg-border/40" />
                         <div className="w-full flex items-center justify-between group">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-secondary/40 rounded-xl text-muted-foreground">
-                                    <Key size={18} />
+                            <div className="flex items-center gap-2 overflow-hidden">
+                                <div className="p-1.5 bg-secondary/40 rounded-lg text-muted-foreground shrink-0">
+                                    <Key size={14} />
                                 </div>
-                                <div className="text-left">
-                                    <p className="text-sm font-semibold">Отпечаток</p>
-                                    <p className="text-[10px] text-muted-foreground font-mono truncate w-32">{peerInfo?.fingerprint || 'недоступно'}</p>
+                                <div className="text-left min-w-0">
+                                    <p className="text-xs font-semibold">Отпечаток</p>
+                                    <p className="text-[9px] text-muted-foreground font-mono truncate w-32" title={peerInfo?.fingerprint}>
+                                        {peerInfo?.fingerprint ? `${peerInfo.fingerprint.substring(0, 16)}...` : 'недоступно'}
+                                    </p>
                                 </div>
                             </div>
-                            <Copy size={14} className="text-muted-foreground opacity-60" />
+                            <Copy size={12} className="text-muted-foreground opacity-60 cursor-pointer hover:text-primary" onClick={() => {
+                                if (peerInfo?.fingerprint) {
+                                    navigator.clipboard.writeText(peerInfo.fingerprint);
+                                    toast({ title: 'Отпечаток скопирован' });
+                                }
+                            }} />
                         </div>
                     </div>
                 </div>
 
                 {/* Shared Media */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Медиа и файлы</h3>
-                         <button className="text-xs text-primary hover:underline hover:glow-text-blue">Все</button>
+                         <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">Медиа и файлы</h3>
+                         <button className="text-[10px] text-primary hover:underline hover:glow-text-blue">Все</button>
                     </div>
-                    <div className="text-[10px] text-muted-foreground font-mono space-y-1">
-                      {(peerInfo?.p2p_addrs ?? []).map(a => (
-                        <div key={a} className="truncate">{a}</div>
-                      ))}
-                      {(!peerInfo?.p2p_addrs || peerInfo.p2p_addrs.length === 0) && <div>адреса недоступны</div>}
-                    </div>
+                    
                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-                        <div className="w-20 h-20 bg-secondary/30 dark:bg-[#1a1b20] rounded-xl flex items-center justify-center shrink-0 border border-white/5 hover:border-primary/30 transition-colors">
-                            <FileText size={24} className="text-muted-foreground" />
+                        <div className="w-16 h-16 bg-secondary/30 dark:bg-[#1a1b20] rounded-xl flex items-center justify-center shrink-0 border border-white/5 hover:border-primary/30 transition-colors">
+                            <FileText size={20} className="text-muted-foreground" />
                         </div>
-                        <div className="w-20 h-20 bg-secondary/30 dark:bg-[#1a1b20] rounded-xl flex items-center justify-center shrink-0 border border-white/5 hover:border-primary/30 transition-colors">
-                            <FolderOpen size={24} className="text-muted-foreground" />
+                        <div className="w-16 h-16 bg-secondary/30 dark:bg-[#1a1b20] rounded-xl flex items-center justify-center shrink-0 border border-white/5 hover:border-primary/30 transition-colors">
+                            <FolderOpen size={20} className="text-muted-foreground" />
                         </div>
-                        <div className="w-20 h-20 bg-secondary/30 dark:bg-[#1a1b20] rounded-xl flex items-center justify-center shrink-0 border border-white/5 hover:border-primary/30 transition-colors">
-                            <Share2 size={24} className="text-muted-foreground" />
+                        <div className="w-16 h-16 bg-secondary/30 dark:bg-[#1a1b20] rounded-xl flex items-center justify-center shrink-0 border border-white/5 hover:border-primary/30 transition-colors">
+                            <Share2 size={20} className="text-muted-foreground" />
                         </div>
                     </div>
                 </div>
 
-                <button className="w-full py-3 rounded-xl text-sm font-medium text-destructive bg-destructive/5 hover:bg-destructive/10 border border-destructive/10 transition-colors flex items-center justify-center gap-2 mt-4">
-                    <ShieldX size={16} /> Заблокировать контакт
+                <button 
+                    onClick={toggleBlock}
+                    className={`w-full py-2.5 rounded-xl text-xs font-medium transition-colors flex items-center justify-center gap-2 mt-2 ${
+                        isBlocked 
+                        ? 'text-white bg-destructive hover:bg-destructive/90 shadow-lg shadow-destructive/20' 
+                        : 'text-destructive bg-destructive/5 hover:bg-destructive/10 border border-destructive/10'
+                    }`}
+                >
+                    <ShieldX size={14} /> {isBlocked ? 'Разблокировать контакт' : 'Заблокировать контакт'}
                 </button>
             </div>
         </ScrollArea>

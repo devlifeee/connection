@@ -8,13 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { nodeAgentApi, type Call, type MediaEvent } from '@/api/nodeAgent';
 
-type CallState = 'idle' | 'incoming' | 'outgoing' | 'connected';
+interface Props {
+  initialPeerId?: string | null;
+  autoStart?: boolean;
+  autoVideo?: boolean;
+}
 
-const CallsPanel = () => {
+const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
   const { data: peersData } = useNodeAgentPresencePeers();
   const { events, getEventsByType } = useSession();
   const [callState, setCallState] = useState<CallState>('idle');
-  const [targetPeerId, setTargetPeerId] = useState<string>("");
+  const [targetPeerId, setTargetPeerId] = useState<string>(initialPeerId || "");
   const [currentCall, setCurrentCall] = useState<Call | null>(null);
   const [callTimer, setCallTimer] = useState('00:00');
   const [micEnabled, setMicEnabled] = useState(true);
@@ -40,6 +44,17 @@ const CallsPanel = () => {
     try { return JSON.parse(localStorage.getItem('svyaz-call-history') || '[]'); } catch { return []; }
   });
   const [historyLimit, setHistoryLimit] = useState(5);
+
+  // Auto start call if props provided
+  useEffect(() => {
+    if (autoStart && initialPeerId && callState === 'idle') {
+        // Allow state to settle then start call
+        const timer = setTimeout(() => {
+            startCall(!!autoVideo);
+        }, 500);
+        return () => clearTimeout(timer);
+    }
+  }, [autoStart, initialPeerId]);
 
   const saveHistory = (items: typeof history) => {
     setHistory(items);
@@ -279,8 +294,13 @@ const CallsPanel = () => {
   };
 
   const startCall = async (video: boolean) => {
-    console.log('Starting call to:', targetPeerId, 'video:', video);
-    if (!targetPeerId) return;
+    // If no targetPeerId is set, try to use initialPeerId or just return
+    const peerToCall = targetPeerId || initialPeerId;
+    console.log('Starting call to:', peerToCall, 'video:', video);
+    if (!peerToCall) return;
+    
+    // Ensure targetPeerId is set for UI
+    if (targetPeerId !== peerToCall) setTargetPeerId(peerToCall);
     
     setVideoEnabled(video);
     const stream = await getLocalStream(video);
@@ -294,13 +314,13 @@ const CallsPanel = () => {
         await pc.setLocalDescription(offer);
         console.log('Created offer:', offer);
 
-        const res = await nodeAgentApi.initiateCall(targetPeerId, offer.sdp!, video ? "video" : "audio");
+        const res = await nodeAgentApi.initiateCall(peerToCall, offer.sdp!, video ? "video" : "audio");
         console.log('Call initiated:', res);
         if (res.ok) {
             setCurrentCall(res.call);
             setCallState('outgoing');
             callStartAt.current = Date.now();
-            saveHistory([...history, { peer: targetPeerId, type: video ? 'video' : 'audio', dir: 'исходящий', ts: Date.now(), dur: 0 }]);
+            saveHistory([...history, { peer: peerToCall, type: video ? 'video' : 'audio', dir: 'исходящий', ts: Date.now(), dur: 0 }]);
         }
     } catch (e) {
         console.error('Failed to start call:', e);
