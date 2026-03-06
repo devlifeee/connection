@@ -14,20 +14,45 @@ interface MessageBubbleProps {
   isRead?: boolean;
   isDelivered?: boolean;
   className?: string;
+  groupPosition?: 'single' | 'first' | 'middle' | 'last';
 }
 
-const MessageBubble = ({ text, mediaUrl, mediaType, fileName, fileSize, duration, time, isMe, isRead, isDelivered, className }: MessageBubbleProps) => {
+const MessageBubble = ({ 
+  text, 
+  mediaUrl, 
+  mediaType, 
+  fileName, 
+  fileSize, 
+  duration, 
+  time, 
+  isMe, 
+  isRead, 
+  isDelivered, 
+  className,
+  groupPosition = 'single'
+}: MessageBubbleProps) => {
   const isMedia = mediaType === 'image' || mediaType === 'video';
+  const showTail = groupPosition === 'single' || groupPosition === 'last';
   
+  // Border radius logic
+  const borderRadiusClass = (() => {
+    // Always use left-side logic since all messages are aligned to the left
+    switch (groupPosition) {
+      case 'first': return "rounded-2xl rounded-bl-[4px]";
+      case 'middle': return "rounded-2xl rounded-l-[4px]";
+      case 'last': return "rounded-2xl rounded-tl-[4px] rounded-bl-none";
+      default: return "rounded-2xl rounded-bl-none";
+    }
+  })();
+
   return (
-    <div className={cn("relative max-w-[320px] shadow-sm group", className)}>
+    <div className={cn("relative max-w-[70%] shadow-sm group", className)}>
       <div
         className={cn(
-          "relative z-10 break-words whitespace-pre-wrap leading-relaxed overflow-hidden",
-          isMedia ? "p-1 rounded-2xl" : "px-3 py-2 rounded-2xl",
-          isMe
-            ? "bg-[#2b5278] text-white rounded-br-none"
-            : "bg-[#182533] text-white rounded-bl-none"
+          "relative z-10 break-words whitespace-pre-wrap leading-relaxed overflow-hidden transition-all duration-200",
+          isMedia ? "p-1" : "px-3 py-2",
+          borderRadiusClass,
+          isMe ? "bg-[#2b5278] text-white" : "bg-[#182533] text-white"
         )}
       >
         {/* Media Content */}
@@ -112,22 +137,12 @@ const MessageBubble = ({ text, mediaUrl, mediaType, fileName, fileSize, duration
         </div>
       </div>
 
-      {/* Telegram-style SVG Tail */}
-      {isMe ? (
-        <svg
-          className="absolute -right-[8px] bottom-0 w-[9px] h-[16px] z-10 pointer-events-none"
-          viewBox="0 0 9 16"
-          fill="#2b5278"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path d="M0 8c0 4.418 0 8 0 8h8.5c-4.5 0-8.5-4-8.5-8z" />
-          <path d="M0,16 L0,0 C0,10 9,16 9,16 L0,16 Z" />
-        </svg>
-      ) : (
+      {/* Telegram-style SVG Tail - always on left */}
+      {showTail && (
         <svg
           className="absolute -left-[8px] bottom-0 w-[9px] h-[16px] z-10 pointer-events-none"
           viewBox="0 0 9 16"
-          fill="#182533"
+          fill={isMe ? "#2b5278" : "#182533"}
           xmlns="http://www.w3.org/2000/svg"
         >
           <path d="M9 8c0 4.418 0 8 0 8H0.5C5 16 9 12 9 8z" />

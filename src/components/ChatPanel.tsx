@@ -85,6 +85,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel }: Props) => 
       mediaType: 'audio',
       duration: duration,
       time: new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }),
+      timestamp: Date.now(),
       delivered: true,
       type: 'audio',
     };
@@ -124,6 +125,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel }: Props) => 
       fileName: previewMedia?.file.name,
       fileSize: formatFileSize(previewMedia?.file.size || 0),
       time: nowTime,
+      timestamp: Date.now(),
       delivered: true,
       type: previewMedia ? previewMedia.type : 'text',
     };
@@ -211,6 +213,24 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel }: Props) => 
     );
   }
 
+  const getGroupPosition = (index: number, allMessages: any[], currentSender: string) => {
+    const prev = allMessages[index - 1];
+    const next = allMessages[index + 1];
+    
+    // Check if sender is same. 
+    // Handle both optimistic messages (from='me') and remote (sender='peerid')
+    const getSender = (m: any) => m.from === 'me' ? 'me' : m.sender;
+    
+    const isPrevSame = prev && getSender(prev) === currentSender;
+    const isNextSame = next && getSender(next) === currentSender;
+    
+    if (!isPrevSame && !isNextSame) return 'single';
+    if (!isPrevSame && isNextSame) return 'first';
+    if (isPrevSame && isNextSame) return 'middle';
+    if (isPrevSame && !isNextSame) return 'last';
+    return 'single';
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full min-w-0 bg-background/50 dark:bg-black/40 backdrop-blur-3xl relative">
       {/* Header */}
@@ -241,77 +261,143 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel }: Props) => 
       </div>
 
       {/* Messages */}
-      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto scrollbar-thin px-4 py-6 space-y-6 relative">
-        {/* remote messages from node-agent history */}
-        {([...(chatHistory?.data?.messages ?? [])].sort((a,b)=>a.timestamp - b.timestamp)).map(env => {
-          if ((env as any).type === 'ack') return null;
-          const txt = env.payload && typeof env.payload === "object" ? env.payload.text ?? "" : "";
-          // Allow empty text if media present (future proofing) but current backend needs text
-          if (!txt && !env.payload) return null; 
+      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto scrollbar-thin px-4 py-6 relative">
+        <div className="flex flex-col gap-[2px]">
+        {/* Unified message list */}
+        {(() => {
+          // 1. Prepare history messages
+          const historyMessages = (chatHistory?.data?.messages ?? []).map(env => {
+            if ((env as any).type === 'ack') return null;
+            const txt = env.payload && typeof env.payload === "object" ? env.payload.text ?? "" : "";
+            if (!txt && !env.payload) return null;
+
+            const time = new Date(env.timestamp).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+            const isMe = env.sender === myPeerId;
+            const ackedIds = new Set((chatHistory?.data?.messages ?? []).filter((m:any)=>m.type==='ack' && m.ack_for).map((m:any)=>m.ack_for));
+            const delivered = isMe && ackedIds.has(env.id);
+            const read = isMe && !!lastReadId && (env.id <= lastReadId);
+
+            let mediaType: 'image' | 'video' | 'file' | 'audio' | undefined;
+            let fileName: string | undefined;
+            let duration: string | undefined;
+            let displayText = txt;
+
+            if (txt.startsWith('[Voice Message]')) {
+              mediaType = 'audio';
+              duration = txt.replace('[Voice Message]', '').trim();
+              displayText = '';
+            } else if (txt.startsWith('[image]')) {
+              mediaType = 'image';
+              fileName = txt.replace('[image]', '').trim();
+              displayText = '';
+            } else if (txt.startsWith('[video]')) {
+              mediaType = 'video';
+              fileName = txt.replace('[video]', '').trim();
+              displayText = '';
+            } else if (txt.startsWith('[file]')) {
+              mediaType = 'file';
+              fileName = txt.replace('[file]', '').trim();
+              displayText = '';
+            }
+
+            return {
+              id: env.id,
+              text: displayText,
+              mediaType,
+              fileName,
+              duration,
+              time,
+              timestamp: env.timestamp,
+              isMe,
+              isRead: read,
+              isDelivered: delivered,
+              sender: env.sender
+            };
+          }).filter(Boolean) as any[];
+
+          // 2. Prepare local optimistic messages
+          const localMessages = messages.map(msg => ({
+            id: msg.id,
+            text: msg.text,
+            mediaType: msg.mediaType,
+            fileName: msg.fileName,
+            duration: msg.duration,
+            mediaUrl: msg.mediaUrl, // Local only
+            time: msg.time,
+            timestamp: msg.timestamp || Date.now(),
+            isMe: true,
+            isRead: false,
+            isDelivered: msg.delivered,
+            sender: 'me'
+          }));
+
+          // 3. Combine and sort
+          const sortedHistory = [...historyMessages].sort((a, b) => a.timestamp - b.timestamp);
           
-          const time = new Date(env.timestamp).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
-          const isMe = env.sender === myPeerId;
-          const ackedIds = new Set((chatHistory?.data?.messages ?? []).filter((m:any)=>m.type==='ack' && m.ack_for).map((m:any)=>m.ack_for));
-          const delivered = isMe && ackedIds.has(env.id);
-          const read = isMe && !!lastReadId && (env.id <= lastReadId);
-          
-          let mediaType: 'image' | 'video' | 'file' | 'audio' | undefined;
-          let fileName: string | undefined;
-          let duration: string | undefined;
-          let displayText = txt;
+          // Filter local messages that are already in history (by content and approximate timestamp)
+          const uniqueLocalMessages = localMessages.filter(localMsg => {
+             // For media messages, check mediaType/duration/fileName if text is empty
+             if (localMsg.type === 'audio') {
+                 return !sortedHistory.some(h => 
+                     h.isMe && 
+                     h.mediaType === 'audio' && 
+                     h.duration === localMsg.duration && 
+                     Math.abs(h.timestamp - localMsg.timestamp) < 10000
+                 );
+             }
+             if (localMsg.mediaType && localMsg.mediaType !== 'audio') {
+                 return !sortedHistory.some(h => 
+                     h.isMe && 
+                     h.mediaType === localMsg.mediaType && 
+                     h.fileName === localMsg.fileName && 
+                     Math.abs(h.timestamp - localMsg.timestamp) < 10000
+                 );
+             }
 
-          if (txt.startsWith('[Voice Message]')) {
-            mediaType = 'audio';
-            duration = txt.replace('[Voice Message]', '').trim();
-            displayText = '';
-          } else if (txt.startsWith('[image]')) {
-            mediaType = 'image';
-            fileName = txt.replace('[image]', '').trim();
-            displayText = '';
-          } else if (txt.startsWith('[video]')) {
-            mediaType = 'video';
-            fileName = txt.replace('[video]', '').trim();
-            displayText = '';
-          } else if (txt.startsWith('[file]')) {
-            mediaType = 'file';
-            fileName = txt.replace('[file]', '').trim();
-            displayText = '';
-          }
+             // Text messages
+             return !sortedHistory.some(historyMsg => 
+                historyMsg.isMe && 
+                historyMsg.text === localMsg.text && 
+                Math.abs(historyMsg.timestamp - localMsg.timestamp) < 5000
+             );
+          });
 
-          return (
-            <div key={env.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group items-end gap-2`}>
-               {!isMe && <GeometricAvatar index={1} size={28} className="mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />}
-               <MessageBubble 
-                 text={displayText} 
-                 mediaType={mediaType}
-                 fileName={fileName}
-                 duration={duration}
-                 time={time} 
-                 isMe={isMe} 
-                 isRead={read} 
-                 isDelivered={delivered} 
-               />
-            </div>
-          );
-        })}
+          const allMessages = [...sortedHistory, ...uniqueLocalMessages].sort((a, b) => a.timestamp - b.timestamp);
 
-        {/* Local Optimistic Messages */}
-        {messages.map((msg, idx) => (
-            <div key={msg.id || idx} className={`flex ${msg.from === 'me' ? 'justify-end' : 'justify-start'} group items-end gap-2`}>
-                <MessageBubble 
-                    text={msg.text}
-                    mediaUrl={msg.mediaUrl}
-                    mediaType={msg.mediaType}
-                    fileName={msg.fileName}
-                    fileSize={msg.fileSize}
-                    duration={msg.duration}
-                    time={msg.time}
-                    isMe={true}
-                    isRead={false}
-                    isDelivered={msg.delivered}
-                />
-            </div>
-        ))}
+          return allMessages.map((msg, index) => {
+             const groupPosition = getGroupPosition(index, allMessages, msg.sender);
+             const isGroupStart = groupPosition === 'first' || groupPosition === 'single';
+
+             return (
+              <div key={msg.id} className={`flex flex-col items-start ${isGroupStart ? 'mt-3' : ''}`}>
+                <div className={`flex justify-start group items-end gap-2 max-w-full`}>
+                   <div className="w-[28px] shrink-0 mb-1">
+                     {(groupPosition === 'last' || groupPosition === 'single') && (
+                       <GeometricAvatar 
+                         index={msg.isMe ? 0 : 1} 
+                         size={28} 
+                         className="transition-opacity duration-300" 
+                       />
+                     )}
+                   </div>
+                   <MessageBubble 
+                     text={msg.text} 
+                     mediaUrl={msg.mediaUrl}
+                     mediaType={msg.mediaType}
+                     fileName={msg.fileName}
+                     duration={msg.duration}
+                     time={msg.time} 
+                     isMe={msg.isMe} 
+                     isRead={msg.isRead} 
+                     isDelivered={msg.isDelivered} 
+                     groupPosition={groupPosition}
+                   />
+                </div>
+              </div>
+             );
+          });
+        })()}
+        </div>
         
         {backendError && (
           <div className="flex justify-center sticky bottom-4 z-10">
@@ -337,7 +423,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel }: Props) => 
 
       {/* Input Area */}
       <div className="p-6 sticky bottom-0 z-20 bg-gradient-to-t from-background via-background/90 to-transparent pb-8">
-        <div className="max-w-4xl mx-auto bg-background/80 dark:bg-card/80 backdrop-blur-2xl border border-border/40 rounded-[24px] shadow-2xl ring-1 ring-border relative">
+        <div className="max-w-7xl mx-auto bg-background/80 dark:bg-card/80 backdrop-blur-2xl border border-border/40 rounded-[24px] shadow-2xl ring-1 ring-border relative">
           
           {/* Media Preview */}
           {previewMedia && (

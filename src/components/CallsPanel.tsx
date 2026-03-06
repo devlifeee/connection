@@ -136,7 +136,21 @@ const CallsPanel = () => {
 
   const getLocalStream = async (video: boolean) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: video });
+      const constraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          latency: 0
+        },
+        video: video ? {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30, max: 60 }
+        } : false
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStream.current = stream;
       
       // Always show local preview if video is requested, regardless of call state
