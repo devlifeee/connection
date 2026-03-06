@@ -35,6 +35,14 @@ const CallsPanel = () => {
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const timerInterval = useRef<NodeJS.Timeout | null>(null);
+  const callStartAt = useRef<number | null>(null);
+  const [history, setHistory] = useState<Array<{ peer: string; type: 'audio'|'video'; dir: 'исходящий'|'входящий'; ts: number; dur: number }>>(() => {
+    try { return JSON.parse(localStorage.getItem('svyaz-call-history') || '[]'); } catch { return []; }
+  });
+  const saveHistory = (items: typeof history) => {
+    setHistory(items);
+    try { localStorage.setItem('svyaz-call-history', JSON.stringify(items.slice(-50))); } catch {}
+  };
 
   // Initialize WebRTC
   const initPeerConnection = () => {
@@ -275,6 +283,8 @@ const CallsPanel = () => {
         if (res.ok) {
             setCurrentCall(res.call);
             setCallState('outgoing');
+            callStartAt.current = Date.now();
+            saveHistory([...history, { peer: targetPeerId, type: video ? 'video' : 'audio', dir: 'исходящий', ts: Date.now(), dur: 0 }]);
         }
     } catch (e) {
         console.error('Failed to start call:', e);
@@ -309,6 +319,10 @@ const CallsPanel = () => {
         console.log('Call answered');
         setCallState('connected');
         startTimer();
+        callStartAt.current = Date.now();
+        if (currentCall) {
+          saveHistory([...history, { peer: currentCall.peer_id, type: video ? 'video' : 'audio', dir: 'входящий', ts: Date.now(), dur: 0 }]);
+        }
     } catch (e) {
         console.error('Failed to accept call:', e);
         toast.error("Failed to accept call");
@@ -339,6 +353,15 @@ const CallsPanel = () => {
         timerInterval.current = null;
     }
     
+    const endAt = Date.now();
+    if (callStartAt.current) {
+      const dur = Math.max(0, Math.floor((endAt - callStartAt.current) / 1000));
+      if (history.length) {
+        const last = history[history.length - 1];
+        const updated = [...history.slice(0, -1), { ...last, dur }];
+        saveHistory(updated);
+      }
+    }
     setCurrentCall(null);
     setCallState('idle');
     setCallTimer('00:00');
@@ -496,12 +519,12 @@ const CallsPanel = () => {
             <div className="w-32 h-32 rounded-full bg-muted flex items-center justify-center mb-4">
                 <Video size={48} className="text-muted-foreground" />
             </div>
-            <h2 className="text-2xl font-semibold">Start a Call</h2>
+            <h2 className="text-2xl font-semibold">Начать звонок</h2>
             
             <div className="w-full max-w-xs space-y-4">
                  <Select value={targetPeerId} onValueChange={setTargetPeerId}>
                     <SelectTrigger>
-                        <SelectValue placeholder="Select peer to call..." />
+                        <SelectValue placeholder="Выберите собеседника..." />
                     </SelectTrigger>
                     <SelectContent>
                         {peersData?.peers.map(p => (
@@ -510,18 +533,33 @@ const CallsPanel = () => {
                             </SelectItem>
                         ))}
                         {(!peersData?.peers || peersData.peers.length === 0) && (
-                            <div className="p-2 text-sm text-muted-foreground text-center">No peers online</div>
+                            <div className="p-2 text-sm text-muted-foreground text-center">Нет контактов онлайн</div>
                         )}
                     </SelectContent>
                  </Select>
                  
                  <div className="grid grid-cols-2 gap-3">
-                    <Button className="h-12 text-md gap-2" onClick={() => startCall(false)} disabled={!targetPeerId}>
-                        <Phone size={18} /> Audio
+                    <Button className="h-12 text-md gap-2 bg-[#2b5278] hover:bg-[#2b5278]/90 text-white border-0" onClick={() => startCall(false)} disabled={!targetPeerId}>
+                        <Phone size={18} /> Аудио
                     </Button>
-                    <Button className="h-12 text-md gap-2" variant="outline" onClick={() => startCall(true)} disabled={!targetPeerId}>
-                        <Video size={18} /> Video
+                    <Button className="h-12 text-md gap-2 bg-[#182533] hover:bg-[#182533]/90 text-white border-0" onClick={() => startCall(true)} disabled={!targetPeerId}>
+                        <Video size={18} /> Видео
                     </Button>
+                 </div>
+                 
+                 <div className="mt-6">
+                   <h3 className="text-sm font-semibold mb-2">История звонков</h3>
+                   <div className="space-y-2 max-h-52 overflow-auto pr-1">
+                     {history.length === 0 && <div className="text-xs text-muted-foreground">Пока пусто</div>}
+                     {history.slice().reverse().map((h, i) => (
+                       <div key={i} className="text-xs bg-card/60 border border-border/40 rounded-md px-3 py-2 flex items-center justify-between">
+                         <span className="font-mono">{new Date(h.ts).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}</span>
+                         <span className="uppercase tracking-wide">{h.type === 'video' ? 'Видео' : 'Аудио'}</span>
+                         <span className="truncate max-w-[120px]">{h.dir} с {h.peer.substring(0,8)}…</span>
+                         <span className="font-mono opacity-70">{Math.floor(h.dur/60).toString().padStart(2,'0')}:{(h.dur%60).toString().padStart(2,'0')}</span>
+                       </div>
+                     ))}
+                   </div>
                  </div>
             </div>
         </div>
@@ -533,8 +571,8 @@ const CallsPanel = () => {
                <div className="w-32 h-32 rounded-full bg-primary/10 flex items-center justify-center mb-6 animate-pulse">
                    {currentCall.type === 'video' ? <Video size={48} className="text-primary" /> : <Phone size={48} className="text-primary" />}
                </div>
-               <h2 className="text-3xl font-bold mb-2">Incoming {currentCall.type === 'video' ? 'Video' : 'Audio'} Call</h2>
-               <p className="text-muted-foreground mb-8">from {currentCall.peer_id.substring(0, 8)}...</p>
+               <h2 className="text-3xl font-bold mb-2">Входящий {currentCall.type === 'video' ? 'видеозвонок' : 'аудиозвонок'}</h2>
+               <p className="text-muted-foreground mb-8">от {currentCall.peer_id.substring(0, 8)}...</p>
                
                <div className="flex gap-8">
                    <Button size="lg" className="h-16 w-16 rounded-full bg-green-500 hover:bg-green-600" onClick={() => acceptCall(currentCall.type === 'video')}>
@@ -571,7 +609,7 @@ const CallsPanel = () => {
                       {callState === 'outgoing' ? 'Calling...' : callTimer}
                   </p>
                   <div className={`flex items-center justify-center gap-2 text-xs ${currentCall?.type === 'video' && callState === 'connected' ? 'text-white/70' : 'text-muted-foreground'}`}>
-                      <Lock size={12} /> End-to-end encrypted
+                      <Lock size={12} /> Сквозное шифрование
                   </div>
                   {metrics && callState === 'connected' && (
                     <div className="mt-2 text-xs font-mono opacity-80">

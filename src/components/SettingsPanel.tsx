@@ -96,40 +96,11 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Профиль</h3>
             <div className="flex items-center gap-4 mb-4">
-              <GeometricAvatar index={user.avatar} size={64} />
-              <div className="flex flex-col gap-2">
-                <div className="flex gap-2 flex-wrap">
-                  {[0, 1, 2, 3, 4, 5].map(i => (
-                    <GeometricAvatar key={i} index={i} size={32} selected={user.avatar === i}
-                      onClick={() => onUpdateUser({ avatar: i })} />
-                  ))}
-                  <div className="relative">
-                    <input 
-                      type="file" 
-                      id="settings-avatar-upload"
-                      className="hidden" 
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            onUpdateUser({ avatar: reader.result as string });
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      className="h-8 w-8 rounded-full"
-                      onClick={() => document.getElementById('settings-avatar-upload')?.click()}
-                    >
-                      <Upload size={14} />
-                    </Button>
-                  </div>
-                </div>
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-muted-foreground">
+                  <path d="M20 21a8 8 0 1 0-16 0" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
               </div>
             </div>
             <div>
