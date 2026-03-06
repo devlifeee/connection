@@ -432,7 +432,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel, onStartCall 
 
       {/* Input Area */}
       <div className="p-6 sticky bottom-0 z-20 bg-gradient-to-t from-background via-background/90 to-transparent pb-8">
-        <div className="max-w-7xl mx-auto bg-background/80 dark:bg-card/80 backdrop-blur-2xl border border-border/40 rounded-[24px] shadow-2xl ring-1 ring-border relative">
+        <div className="max-w-15xl mx-auto bg-background/80 dark:bg-card/80 backdrop-blur-2xl border border-border/40 rounded-[24px] shadow-2xl ring-1 ring-border relative">
           
           {/* Media Preview */}
           {previewMedia && (
