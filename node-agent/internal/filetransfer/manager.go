@@ -40,6 +40,7 @@ type Manager struct {
 	cancelled map[string]struct{}
 	peerRate  map[string]int64
 	paused    map[string]struct{}
+	sem       chan struct{}
 }
 
 func NewManager(h host.Host, cfg Config) *Manager {
@@ -61,9 +62,13 @@ func NewManager(h host.Host, cfg Config) *Manager {
 		cancelled: make(map[string]struct{}),
 		peerRate:  make(map[string]int64),
 		paused:    make(map[string]struct{}),
+		sem:       make(chan struct{}, 2), // default parallelism 2
 	}
 }
 
+func (m *Manager) DownloadsDir() string {
+	return m.config.DownloadsDir
+}
 func (m *Manager) Start() {
 	m.host.SetStreamHandler(ProtocolID, m.handleStream)
 }
@@ -131,7 +136,19 @@ func (m *Manager) SendFile(ctx context.Context, targetPeerID string, filePath st
 	m.transfers[transferID] = t
 	m.mu.Unlock()
 
-	go m.processSend(context.Background(), t)
+	go func() {
+		select {
+		case m.sem <- struct{}{}:
+			defer func() { <-m.sem }()
+			m.processSend(context.Background(), t)
+		case <-time.After(100 * time.Millisecond):
+			// queued start
+			time.Sleep(500 * time.Millisecond)
+			m.sem <- struct{}{}
+			defer func() { <-m.sem }()
+			m.processSend(context.Background(), t)
+		}
+	}()
 
 	return t, nil
 }
@@ -404,6 +421,11 @@ func (m *Manager) handleStream(stream network.Stream) {
 			}
 			
 			m.completeTransfer(t.ID)
+			m.mu.Lock()
+			if tt, ok := m.transfers[t.ID]; ok {
+				tt.Verified = true
+			}
+			m.mu.Unlock()
 			writeJSON(rw, MsgAck, AckPayload{TransferID: t.ID, Offset: t.Offset})
 			return
 		}

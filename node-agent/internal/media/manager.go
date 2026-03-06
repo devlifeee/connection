@@ -234,10 +234,13 @@ func (m *Manager) readLoop(stream network.Stream, callID string) {
 		case SignalAnswer:
 			var answer AnswerPayload
 			if err := json.Unmarshal(msg.Payload, &answer); err == nil {
+				m.mu.Lock()
+				call := m.calls[callID]
+				if call != nil {
+					call.State = CallConnected
+				}
+				m.mu.Unlock()
 				if m.handler != nil {
-					m.mu.RLock()
-					call := m.calls[callID]
-					m.mu.RUnlock()
 					if call != nil {
 						m.handler.OnCallAccepted(call, answer.SDP)
 					}

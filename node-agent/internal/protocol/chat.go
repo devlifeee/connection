@@ -66,6 +66,7 @@ type ChatHandler struct {
 	seen     map[string]struct{}
 	OnMsg    func(e Envelope)
 	OnAck    func(e Envelope)
+	VerifyFn func(sender string, e Envelope) bool
 }
 
 func (h *ChatHandler) ProtocolID(id string) protocol.ID {
@@ -89,7 +90,11 @@ func (h *ChatHandler) HandleStream(stream network.Stream) {
 		if err := json.Unmarshal(line, &env); err != nil {
 			continue
 		}
-		// Dedup by ID
+		// TTL drop for chat messages
+		if env.Type == "chat" && env.TTL <= 0 {
+			continue
+		}
+		// Dedup by ID with simple cap
 		h.mu.Lock()
 		if h.seen == nil {
 			h.seen = make(map[string]struct{}, 1024)
@@ -99,10 +104,18 @@ func (h *ChatHandler) HandleStream(stream network.Stream) {
 			continue
 		}
 		h.seen[env.ID] = struct{}{}
+		// simple cap: if too many, reset
+		if len(h.seen) > 8192 {
+			h.seen = make(map[string]struct{}, 1024)
+		}
 		h.mu.Unlock()
 
 		switch env.Type {
 		case "chat":
+			// verify signature if VerifyFn provided
+			if h.VerifyFn != nil && !h.VerifyFn(env.Sender, env) {
+				continue
+			}
 			if h.OnMsg != nil {
 				h.OnMsg(env)
 			}

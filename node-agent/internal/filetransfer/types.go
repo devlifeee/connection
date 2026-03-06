@@ -100,4 +100,5 @@ type Transfer struct {
 	Error          string         `json:"error,omitempty"`
 	StartTime      time.Time      `json:"start_time"`
 	EndTime        time.Time      `json:"end_time,omitempty"`
+	Verified       bool           `json:"verified,omitempty"`
 }

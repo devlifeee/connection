@@ -194,7 +194,8 @@ export const nodeAgentApi = {
   presence: () => getJson<PresenceResponse>("/presence"),
   presencePeers: () => getJson<PresencePeersResponse>("/presence/peers"),
   protocols: () => getJson<ProtocolsResponse>("/protocols"),
-  sendChat: (body: ChatSendRequest) => postJson<ChatSendRequest, ChatSendResponse>("/chat/send", body),
+  // Increase timeout for /chat/send because backend may try direct stream (~2s) before relay/outbox
+  sendChat: (body: ChatSendRequest) => postJson<ChatSendRequest, ChatSendResponse>("/chat/send", body, 4000),
   chatHistory: (peerId: string, limit = 50) =>
     getJson<ChatHistoryResponse>(`/chat/history?peer_id=${encodeURIComponent(peerId)}&limit=${limit}`),
   chatRead: (peerId: string, lastId: string) =>

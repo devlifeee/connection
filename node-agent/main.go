@@ -29,6 +29,26 @@ func main() {
 	flag.StringVar(&cfg.HTTPAddr, "http", cfg.HTTPAddr, "")
 	flag.Parse()
 
+	// Bootstrap peers from env NHEX_BOOTSTRAP=http://host:port[,http://host2:port]
+	if v := os.Getenv("NHEX_BOOTSTRAP"); v != "" {
+		var out []string
+		cur := ""
+		for _, ch := range v {
+			if ch == ',' || ch == ';' || ch == ' ' {
+				if cur != "" {
+					out = append(out, cur)
+					cur = ""
+				}
+				continue
+			}
+			cur += string(ch)
+		}
+		if cur != "" {
+			out = append(out, cur)
+		}
+		cfg.BootstrapHTTP = out
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

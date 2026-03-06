@@ -15,6 +15,8 @@ type Config struct {
 	ProtocolFile      string
 	ProtocolMediaSign string
 	ProtocolPresence  string
+	BootstrapHTTP     []string
+	EnableRelay       bool
 }
 
 func DefaultConfig() Config {
@@ -31,5 +33,7 @@ func DefaultConfig() Config {
 		ProtocolFile:      "/nhex/file/1.0.0",
 		ProtocolMediaSign: "/nhex/media-signal/1.0.0",
 		ProtocolPresence:  "/nhex/presence/1.0.0",
+		BootstrapHTTP:     nil,
+		EnableRelay:       true,
 	}
 }

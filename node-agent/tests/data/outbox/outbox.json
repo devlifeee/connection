@@ -1,0 +1,21 @@
+[
+  {
+    "peer_id": "12D3KooWPXB3NwoNmhzQAw1Fh9jMzRvApebG5UCWixGkKB9gvrqH",
+    "envelope": {
+      "id": "1772824340858607000",
+      "type": "chat",
+      "timestamp": 1772824340858,
+      "sender": "12D3KooWPXB3NwoNmhzQAw1Fh9jMzRvApebG5UCWixGkKB9gvrqH",
+      "ttl": 8,
+      "payload": {
+        "text": "queued-retry"
+      },
+      "signature": "f1Df3NUp2myVKZcJFLxMG/Km2wpFoKpvpavJLAkJm3nALzlVrKPLKzqDgfXDC59T5WImI8bOY7ej57ldhL0+CQ=="
+    },
+    "next_attempt_ms": 1772824342359,
+    "attempts": 0,
+    "max_retries": 5,
+    "ttl": 4,
+    "created_ms": 1772824340859
+  }
+]
