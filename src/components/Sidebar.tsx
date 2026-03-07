@@ -3,6 +3,7 @@ import GeometricAvatar from './GeometricAvatar';
 import { useNodeAgentPresencePeers } from "@/hooks/useNodeAgent";
 import { useSession } from "@/hooks/useSession";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import Logo from './Logo';
 
 export type NavSection = 'chats' | 'files' | 'calls' | 'nodes' | 'settings';
 
@@ -54,7 +55,7 @@ const Sidebar = ({ user, activeSection, onSectionChange, activeDialog, onDialogS
       <div className="h-16 flex items-center px-6 shrink-0 gap-3">
         <div className="relative">
           <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
-          <img src="src/assets/logo.png" alt="logo" className="w-9 h-9 relative z-10 rounded-xl shadow-sm"/>
+          <Logo className="w-9 h-9 relative z-10 rounded-xl shadow-sm" size={36} />
         </div>
         <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
           СВЯЗЬ
@@ -139,11 +140,17 @@ function PresenceChatList({ activeDialog, onSelect, unread }: { activeDialog: st
   const filteredPeers = useMemo(() => {
      // Filter peers to show only registered users (those with a display_name)
      // Also exclude system Relay nodes (starting with Relay-)
-     const registeredPeers = peers.filter(p => 
-        p.payload.display_name && 
-        p.payload.display_name.trim() !== "" &&
-        !p.payload.display_name.startsWith("Relay-")
-     );
+     const registeredPeers = peers.filter(p => {
+        const name = p.payload.display_name;
+        const id = p.payload.peer_id;
+        
+        // Filter out Relay nodes explicitly
+        if (id === 'Relay-4' || (name && name === 'Relay-4')) return false;
+        if (id && id.startsWith('Relay-')) return false;
+        if (name && name.startsWith('Relay-')) return false;
+
+        return name && name.trim() !== "";
+     });
      
      if (!searchTerm) return registeredPeers;
      
@@ -184,7 +191,9 @@ function PresenceChatList({ activeDialog, onSelect, unread }: { activeDialog: st
                 key={peerId}
                 onClick={() => onSelect(peerId)}
                 className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 text-left group ${
-                    isActive ? 'bg-secondary/40 shadow-sm' : 'hover:bg-secondary/40'
+                    isActive 
+                        ? 'bg-[#2b5278] shadow-md border-l-4 border-blue-500 rounded-l-none' 
+                        : 'hover:bg-secondary/40'
                 }`}
                 >
                 <div className="relative shrink-0">
@@ -193,7 +202,7 @@ function PresenceChatList({ activeDialog, onSelect, unread }: { activeDialog: st
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-sm font-semibold truncate">
+                    <span className={`text-sm font-semibold truncate ${isActive ? 'text-white' : ''}`}>
                         {name}
                     </span>
                     {count > 0 && (
@@ -202,7 +211,7 @@ function PresenceChatList({ activeDialog, onSelect, unread }: { activeDialog: st
                         </span>
                     )}
                     </div>
-                    <p className="text-xs truncate leading-relaxed text-muted-foreground">
+                    <p className={`text-xs truncate leading-relaxed ${isActive ? 'text-white/70' : 'text-muted-foreground'}`}>
                     Готов к связи
                     </p>
                 </div>

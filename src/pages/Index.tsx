@@ -132,6 +132,20 @@ const Index = () => {
   const renderMainContent = () => {
     switch (activeSection) {
       case 'chats':
+        if (!activeDialog) {
+            return (
+                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8 text-center animate-in fade-in duration-500">
+                    <div className="w-24 h-24 bg-secondary/30 rounded-full flex items-center justify-center mb-6">
+                        {/* Assuming MessageSquare is imported, which it isn't in Index.tsx, let's use a simple SVG or text */}
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-xl font-semibold mb-2">Выберите чат</h3>
+                    <p className="max-w-xs text-sm">Выберите собеседника из списка слева, чтобы начать общение</p>
+                </div>
+            );
+        }
         return <ChatPanel 
           dialogNodeId={activeDialog} 
           onSelectNode={setSelectedNode} 

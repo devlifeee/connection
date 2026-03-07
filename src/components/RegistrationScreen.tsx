@@ -23,25 +23,79 @@ const RegistrationScreen = ({ onRegister }: Props) => {
   const isDarkMode = theme === 'dark';
   const updatePresence = useUpdatePresence();
 
-  const handleSubmit = () => {
-    if (!name.trim()) return;
-    const userData = { name: name.trim(), nodeId, avatar: avatar || 0 };
-    // Save profile to localStorage for persistence
-    localStorage.setItem('svyaz-user-profile', JSON.stringify(userData));
-    // Update presence in node-agent
-    updatePresence.mutate(name.trim());
-    onRegister(userData);
-  };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) {
           const reader = new FileReader();
-          reader.onloadend = () => {
-              setAvatar(reader.result as string);
+          reader.onload = (event) => {
+              const img = new Image();
+              img.onload = () => {
+                  const canvas = document.createElement('canvas');
+                  const ctx = canvas.getContext('2d');
+                  
+                  // Resize to max 300x300
+                  const maxSize = 300;
+                  let width = img.width;
+                  let height = img.height;
+                  
+                  if (width > height) {
+                      if (width > maxSize) {
+                          height *= maxSize / width;
+                          width = maxSize;
+                      }
+                  } else {
+                      if (height > maxSize) {
+                          width *= maxSize / height;
+                          height = maxSize;
+                      }
+                  }
+                  
+                  canvas.width = width;
+                  canvas.height = height;
+                  ctx?.drawImage(img, 0, 0, width, height);
+                  
+                  // Compress to JPEG with 0.7 quality
+                  const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                  setAvatar(dataUrl);
+              };
+              img.src = event.target?.result as string;
           };
           reader.readAsDataURL(file);
       }
+  };
+
+  const handleSubmit = async () => {
+    if (!name.trim()) return;
+    
+    // Save profile to localStorage immediately
+    const userData = { name: name.trim(), nodeId, avatar: avatar || 0 };
+    try {
+        localStorage.setItem('svyaz-user-profile', JSON.stringify(userData));
+    } catch (error) {
+        if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+             console.error('Storage quota exceeded, trying to save without avatar');
+             // Fallback: save without avatar if it's too big
+             const minimalData = { ...userData, avatar: 0 };
+             try {
+                localStorage.setItem('svyaz-user-profile', JSON.stringify(minimalData));
+             } catch (e) {
+                 console.error('Critical storage error:', e);
+             }
+        } else {
+             console.error('Storage error:', error);
+        }
+    }
+    
+    try {
+        // Update presence in node-agent and wait for it
+        await updatePresence.mutateAsync(name.trim());
+    } catch (e) {
+        console.error("Failed to update presence:", e);
+        // Continue anyway, local state is what matters for UI transition
+    }
+    
+    // Trigger parent callback to update App state and redirect
+    onRegister(userData);
   };
 
   // Load saved profile on mount

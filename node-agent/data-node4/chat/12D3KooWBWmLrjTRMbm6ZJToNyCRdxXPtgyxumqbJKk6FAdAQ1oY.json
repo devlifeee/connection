@@ -10,6 +10,17 @@
         "text": "1"
       },
       "signature": "tHC64xsKT5zEKM30kwKgmv48Qkiybrx+HmVTTbo5d2N7T+JE7UGmF1qHCitutK/oabpcD9zyZx2jhJkwF1V2DA=="
+    },
+    {
+      "id": "1772903457915921700",
+      "type": "chat",
+      "timestamp": 1772903457915,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "привет"
+      },
+      "signature": "emsGSutTTGeuQbwuFoiv5S+KT64JgghwtkXFIpOFw+2X21mGk3BmAytcNbIf2+w9w2mWJOU3UlpvnGmeu7fkDA=="
     }
   ]
 }

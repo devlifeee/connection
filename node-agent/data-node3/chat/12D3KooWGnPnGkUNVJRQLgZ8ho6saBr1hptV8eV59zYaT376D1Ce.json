@@ -76,7 +76,38 @@
         "text": "[Voice Message] 0:06"
       },
       "signature": "nLijgBz9uWH+hXll/shnrRmE17jaZXUyB6Y5RQYpwrjQO+8XM8VvNGXdKZex33NbqIyrboE+312u6sOeyImsAg=="
+    },
+    {
+      "id": "1772887621518861100",
+      "type": "chat",
+      "timestamp": 1772887621518,
+      "sender": "12D3KooWGnPnGkUNVJRQLgZ8ho6saBr1hptV8eV59zYaT376D1Ce",
+      "ttl": 8,
+      "payload": {
+        "text": "привет"
+      },
+      "signature": "oJ4XODVNjBOQ4R9kDutdnv5hVdqJqHkdkkLUDNsHLh5mP1iFkdsaizjecnPmtMQcCUe1TuhBtVVFuoHwXHOLBQ=="
+    },
+    {
+      "id": "1772890264003711700/ack",
+      "type": "ack",
+      "timestamp": 1772890264006,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ack_for": "1772890264003711700",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772890264003711700",
+      "type": "chat",
+      "timestamp": 1772890264003,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "[Voice Message] 0:05"
+      },
+      "signature": "mVMj8A0jKFJ0FNenWQrYcsx4Mfk5jJexuNcKYUmSgry1hxGvy+YImGXTYcDRTT38Pycx7h/6YH9nIBRz5eysBw=="
     }
   ],
-  "read_up_to": "1772877451085253300"
+  "read_up_to": "1772887621518861100"
 }

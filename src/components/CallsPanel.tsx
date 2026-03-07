@@ -26,12 +26,19 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
   const [callTimer, setCallTimer] = useState('00:00');
   const [micEnabled, setMicEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(false);
+  const [remoteStreamActive, setRemoteStreamActive] = useState(false);
   const [metrics, setMetrics] = useState<{
     rtt?: number;
     audio?: { jitter?: number; inboundLoss?: number; bitrateKbps?: number };
     video?: { jitter?: number; inboundLoss?: number; bitrateKbps?: number };
     quality?: 'good' | 'medium' | 'poor';
   } | null>(null);
+
+  // Find display name for current call
+  const callDisplayName = currentCall ? (
+      peersData?.peers.find(p => p.payload.peer_id === currentCall.peer_id)?.payload.display_name || 
+      currentCall.peer_id.substring(0, 8) + '...'
+  ) : '';
   
   // Track processed events to avoid duplicates
   const processedEvents = useRef<Set<string>>(new Set());
@@ -40,11 +47,19 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
   // WebRTC Refs
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const localStream = useRef<MediaStream | null>(null);
+  const remoteStream = useRef<MediaStream | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const timerInterval = useRef<NodeJS.Timeout | null>(null);
   const callStartAt = useRef<number | null>(null);
   const [history, setHistory] = useState<Array<{ peer: string; type: 'audio'|'video'; dir: 'исходящий'|'входящий'; ts: number; dur: number }>>(() => {
+    // Check if mediaDevices is supported
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error("Media devices API not supported or context is not secure (http)");
+        toast.error("Media API not available");
+        return null;
+    }
+
     try { return JSON.parse(localStorage.getItem('svyaz-call-history') || '[]'); } catch { return []; }
   });
   const [historyLimit, setHistoryLimit] = useState(5);
@@ -112,34 +127,97 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
       }, 1000);
   }, []);
 
+  // Helper to attach streams to video elements safely
+  const attachRemoteStream = useCallback(() => {
+    if (remoteVideoRef.current && remoteStream.current) {
+      console.log('Attaching remote stream to video element', remoteStream.current.getTracks().map(t => t.kind));
+      
+      // Only reset srcObject if it has changed to avoid flickering
+      if (remoteVideoRef.current.srcObject !== remoteStream.current) {
+          remoteVideoRef.current.srcObject = remoteStream.current;
+      }
+      
+      remoteVideoRef.current.muted = false; // Important: hear the caller
+      
+      const playPromise = remoteVideoRef.current.play();
+      if (playPromise !== undefined) {
+          playPromise.catch(e => {
+            if (e.name !== 'AbortError') console.error('Error playing remote video:', e);
+          });
+      }
+      
+      // Update state when video actually starts playing
+      remoteVideoRef.current.onplaying = () => {
+          console.log('Remote video started playing');
+          setRemoteStreamActive(true);
+      };
+    }
+  }, []);
+
+  const attachLocalStream = useCallback(() => {
+    if (localVideoRef.current && localStream.current) {
+      console.log('Attaching local stream to video element');
+      
+      if (localVideoRef.current.srcObject !== localStream.current) {
+          localVideoRef.current.srcObject = localStream.current;
+      }
+      
+      localVideoRef.current.muted = true; // Important: mute yourself
+      localVideoRef.current.play().catch(e => {
+         if (e.name !== 'AbortError') console.error('Error playing local video:', e);
+      });
+    }
+  }, []);
+
+  // Re-attach streams when video elements mount or state changes
+  useEffect(() => {
+    if (callState === 'connected' || callState === 'outgoing') {
+        attachLocalStream();
+        attachRemoteStream();
+    }
+  }, [callState, videoEnabled, attachLocalStream, attachRemoteStream]);
+
   // Initialize WebRTC
   const initPeerConnection = useCallback(() => {
     console.log('Initializing peer connection');
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' }
+      ],
+      iceCandidatePoolSize: 10,
     });
 
     pc.onicecandidate = (event) => {
-      console.log('ICE candidate generated:', event.candidate);
       if (event.candidate && currentCall) {
-        console.log('Sending ICE candidate for call:', currentCall.id);
+        console.log('Sending ICE candidate for call:', currentCall.id, event.candidate.candidate);
         nodeAgentApi.sendCandidate(currentCall.id, event.candidate).catch(e => {
           console.error('Failed to send ICE candidate:', e);
         });
+      } else {
+        console.log('ICE gathering complete');
       }
     };
 
     pc.ontrack = (event) => {
       console.log("Received remote track:", event.track.kind, event.streams.length);
-      if (remoteVideoRef.current && event.streams[0]) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-        remoteVideoRef.current.play().catch(e => {
-          console.error('Failed to play remote video:', e);
-        });
+      
+      // Handle both grouped streams and individual tracks
+      let stream = event.streams[0];
+      if (!stream) {
+         console.warn("No stream in ontrack event, creating new MediaStream");
+         if (!remoteStream.current) {
+             remoteStream.current = new MediaStream();
+         }
+         remoteStream.current.addTrack(event.track);
+      } else {
+         remoteStream.current = stream;
       }
+      
+      attachRemoteStream();
     };
 
     pc.onconnectionstatechange = () => {
@@ -177,6 +255,8 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
       console.log('Video tracks:', videoTracks.length);
       videoTracks.forEach((track, i) => {
         console.log(`Track ${i}:`, {
+          id: track.id,
+          label: track.label,
           enabled: track.enabled,
           readyState: track.readyState,
           muted: track.muted
@@ -203,10 +283,17 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
   }, [videoEnabled, callState, debugVideoState]);
 
   const getLocalStream = useCallback(async (video: boolean) => {
+    // Check Secure Context first
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (!window.isSecureContext && !isLocal) {
+        toast.error("Video calls require HTTPS or localhost");
+        return null;
+    }
+
     // Check if mediaDevices is supported
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error("Media devices API not supported or context is not secure (http)");
-        toast.error("Video calls require HTTPS or localhost");
+        toast.error("Media API not available");
         return null;
     }
 
@@ -229,14 +316,8 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
       localStream.current = stream;
       
       // Always show local preview if video is requested, regardless of call state
-      if (video && localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-          // Force play and handle any autoplay restrictions
-          try {
-            await localVideoRef.current.play();
-          } catch (playError) {
-            console.warn('Autoplay prevented, user interaction required:', playError);
-          }
+      if (video) {
+          attachLocalStream();
       }
       
       return stream;
@@ -273,10 +354,15 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
     if (!stream) return;
 
     const pc = initPeerConnection();
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    
+    // Add tracks BEFORE creating offer
+    stream.getTracks().forEach(track => {
+        console.log('Adding local track to PC:', track.kind, track.label);
+        pc.addTrack(track, stream);
+    });
 
     try {
-        const offer = await pc.createOffer();
+        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: video });
         await pc.setLocalDescription(offer);
         console.log('Created offer:', offer);
 
@@ -316,13 +402,27 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
     }
 
     const pc = initPeerConnection();
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    
+    // Add tracks BEFORE setting remote description
+    stream.getTracks().forEach(track => {
+        console.log('Adding local track to PC (answer):', track.kind, track.label);
+        pc.addTrack(track, stream);
+    });
 
     try {
         await pc.setRemoteDescription(new RTCSessionDescription({
             type: 'offer',
             sdp: sdp
         }));
+        
+        // Process pending candidates that might have arrived before we set remote desc
+        if (pendingCandidates.current.length > 0) {
+            console.log('Processing pending candidates in acceptCall:', pendingCandidates.current.length);
+            pendingCandidates.current.forEach(candidate => {
+                pc.addIceCandidate(candidate).catch(e => console.error('Error adding pending ICE candidate:', e));
+            });
+            pendingCandidates.current = [];
+        }
 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -397,12 +497,21 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
       
       case 'call_accepted':
         if (currentCall && currentCall.id === event.call.id && pc) {
+          console.log('Call accepted, setting remote description');
           pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: (event as any).sdp }))
             .then(() => {
+              console.log('Remote description set, processing pending candidates:', pendingCandidates.current.length);
               setCallState('connected');
               startTimer();
+              
+              // Process pending candidates
+              pendingCandidates.current.forEach(candidate => {
+                  pc.addIceCandidate(candidate).catch(e => console.error('Error adding pending ICE candidate:', e));
+              });
+              pendingCandidates.current = [];
             })
-            .catch(() => {
+            .catch((e) => {
+              console.error('Failed to set remote description:', e);
               toast.error("Failed to establish connection");
             });
         }
@@ -411,11 +520,13 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
         // Handle ICE candidates for current call
         const callId = currentCall?.id || activeCall?.id;
         if (callId && callId === event.call_id) {
+          console.log('Received ICE candidate from peer:', (event as any).candidate);
+          const candidate = new RTCIceCandidate((event as any).candidate);
           if (pc && pc.remoteDescription) {
-            pc.addIceCandidate((event as any).candidate).catch(() => {});
+            pc.addIceCandidate(candidate).catch(e => console.error('Error adding ICE candidate:', e));
           } else {
-            console.log('Queueing ICE candidate');
-            pendingCandidates.current.push((event as any).candidate);
+            console.log('Queueing ICE candidate (no remote description)');
+            pendingCandidates.current.push(candidate);
           }
         }
         break;
@@ -560,13 +671,11 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background relative overflow-hidden">
-      {/* Remote Video / Audio Element */}
-      {/* We use video element for both audio and video calls. For audio calls, it just plays audio. */}
       <video 
         ref={remoteVideoRef} 
         autoPlay 
         playsInline 
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 bg-black pointer-events-none ${callState === 'connected' && currentCall?.type === 'video' ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 bg-black ${callState === 'connected' && currentCall?.type === 'video' ? 'opacity-100' : 'opacity-0'}`}
       />
       
       {/* Local Video Preview (PiP) */}
@@ -649,7 +758,7 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
                    {currentCall.type === 'video' ? <Video size={48} className="text-primary" /> : <Phone size={48} className="text-primary" />}
                </div>
                <h2 className="text-3xl font-bold mb-2">Входящий {currentCall.type === 'video' ? 'видеозвонок' : 'аудиозвонок'}</h2>
-               <p className="text-muted-foreground mb-8">от {currentCall.peer_id.substring(0, 8)}...</p>
+               <p className="text-muted-foreground mb-8">от {callDisplayName}</p>
                
                <div className="flex gap-8">
                    <Button size="lg" className="h-16 w-16 rounded-full bg-green-500 hover:bg-green-600" onClick={() => acceptCall(currentCall.type === 'video')}>
@@ -667,8 +776,8 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
           <div className={`flex flex-col h-full z-10 ${currentCall?.type === 'video' && callState === 'connected' ? 'bg-black/40 text-white backdrop-blur-sm absolute inset-0' : ''}`}>
               
               <div className="flex-1 flex flex-col items-center justify-center space-y-8">
-                  {/* Show Avatar only if Audio Call or Video not yet connected */}
-                  {(currentCall?.type !== 'video' || callState !== 'connected') && (
+                  {/* Show Avatar only if Audio Call or Video not yet connected/active */}
+                  {(!remoteStreamActive || currentCall?.type !== 'video') && (
                       <div className="relative">
                           <div className="w-40 h-40 rounded-full bg-muted flex items-center justify-center overflow-hidden border-4 border-background shadow-xl">
                               <GeometricAvatar index={1} size={160} />
@@ -684,7 +793,7 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
               <div className="flex flex-col items-center pb-8 pt-4 space-y-6">
                   <div className="text-center space-y-2">
                       <h3 className="text-2xl font-bold">
-                          {currentCall?.peer_id.substring(0, 8)}...
+                          {callDisplayName}
                       </h3>
                       <p className={`font-mono text-xl tracking-wider ${currentCall?.type === 'video' && callState === 'connected' ? 'text-white' : 'text-primary'}`}>
                           {callState === 'outgoing' ? 'Calling...' : callTimer}

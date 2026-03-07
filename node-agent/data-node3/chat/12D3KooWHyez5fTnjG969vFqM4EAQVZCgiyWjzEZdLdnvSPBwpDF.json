@@ -43,7 +43,370 @@
         "text": "33;2;24\"4"
       },
       "signature": "stewRWWaE5q7+MnhIl+v3WLmN4Lxdsssr5sGpVK+XCvllayhuE6WCa3phhsuXrlnyrR+pf7t/tGyRP262TSwBg=="
+    },
+    {
+      "id": "1772903156149657600",
+      "type": "chat",
+      "timestamp": 1772903156149,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "привет"
+      },
+      "signature": "c4dpiKBYWaWpFQ09hLeG/zPyqTBbj8Vf3BpoSPTapd7PAtX4igHUhkM6jHnNLFRMLtlhAQAdQKB/1teNbyIaAA=="
+    },
+    {
+      "id": "1772903164655128500",
+      "type": "chat",
+      "timestamp": 1772903164655,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "првиет"
+      },
+      "signature": "hLVs536Yd7zzwjfvnn9mGKSGquczW/eZ8cLg6rzHHsVDneNYEncxPZUSdJKF3gROYPtiqR9dcKIvWN9L1QbpBA=="
+    },
+    {
+      "id": "1772903165648941400",
+      "type": "chat",
+      "timestamp": 1772903165648,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "привет"
+      },
+      "signature": "f+nJMXtKS8T27uWs8SA4yk8Q3imb1aaepQm+0RVKOvF7PJI0zuRvESj73t8yZv53zEjfqShyzr5kviWmcS8nBQ=="
+    },
+    {
+      "id": "1772903166476530700",
+      "type": "chat",
+      "timestamp": 1772903166476,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "привет"
+      },
+      "signature": "HTjBsSD+UPsUNN5HdRdLdmmKVCktp9HhQ7/8aYu0NawIVgEqnc+QOjsGkAxpROUms6zSsa/aBo2datoJnWjIDQ=="
+    },
+    {
+      "id": "1772903168437816800",
+      "type": "chat",
+      "timestamp": 1772903168437,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "привет"
+      },
+      "signature": "nAdaUHwCfuu6uisKcFKSOAPbMFoKE/VxB4yED/T82/UzcHmsGi3UsFJRISduv+I+dQ+cyzFkFEslYJrth3rPDQ=="
+    },
+    {
+      "id": "1772903169573243800",
+      "type": "chat",
+      "timestamp": 1772903169573,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "как дела"
+      },
+      "signature": "Cll7rJjuM1PePGLobl7oG0WsIaNj9yE1RYeLnahj5bW0SihQc/fUnqz1ktkZEnMDRYcZNwbKppeJd3DAwun4Cw=="
+    },
+    {
+      "id": "1772903172138860800",
+      "type": "chat",
+      "timestamp": 1772903172138,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "привет как дела"
+      },
+      "signature": "Q0kSmlU0YsXe2RDIe22OU5W7xDhsN4l2DctFQ2V/45cMfHhg27A1v/JzKgEfnsn11xP2b9AkXjFPV6ueeTPvDw=="
+    },
+    {
+      "id": "1772903174577277400",
+      "type": "chat",
+      "timestamp": 1772903174577,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "мифи топ"
+      },
+      "signature": "tkhug76+3IHcYm2A1C4UhuEoIEk2wHl3217uaiDebD+yMkbSxUeTAIslyK9/4og9XyYUSA9mhKur9/qbuorwDA=="
+    },
+    {
+      "id": "1772903221221359900",
+      "type": "chat",
+      "timestamp": 1772903221221,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "привет"
+      },
+      "signature": "7XpHAPphVdcgmv20dl82KOEjHJsNlkRCNXcTCb8Lg7IKlYJX0nFB89Bu0/v6Nt0jQ+3yemjbT8Zra92DBv04Ag=="
+    },
+    {
+      "id": "1772903222450625600",
+      "type": "chat",
+      "timestamp": 1772903222450,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "привет"
+      },
+      "signature": "rlp7mh726i2Jw/txkoLOqrtr+4yu7m4OlZe7D1qP1/LXFu9BH4IQZeR413BjzJ07ZKpnR/W1sGxgFvXjM6iACQ=="
+    },
+    {
+      "id": "1772903291626450200",
+      "type": "chat",
+      "timestamp": 1772903291626,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "как дела"
+      },
+      "signature": "iadhUvJ1llotKSldWYcarg7t8JsmIzfPeQNkrmTZ6AdmydMewqQPWqZfRO3TkOqXzg4xB5Ad639lviRaVSieAw=="
+    },
+    {
+      "id": "1772903333889561000/ack",
+      "type": "ack",
+      "timestamp": 1772903333891,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ack_for": "1772903333889561000",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772903333889561000",
+      "type": "chat",
+      "timestamp": 1772903333889,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "."
+      },
+      "signature": "P2VyiDqu7Gq7VgIU3OKEb8R3Fd0HhGyHJBJroyWSBaicDzTV7OkTlWPVbDZzu6d2yeiX21RFL0Q7WGfOIip9CQ=="
+    },
+    {
+      "id": "1772903334119317100/ack",
+      "type": "ack",
+      "timestamp": 1772903334121,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ack_for": "1772903334119317100",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772903334119317100",
+      "type": "chat",
+      "timestamp": 1772903334119,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "."
+      },
+      "signature": "BAIoYAJ1peVN5T2iQJt8FJzbundjAVzVsu1RQQOhDY+T3879FSfOgYMAjmADft7ScPCir1xI79Y1d20EKya/AA=="
+    },
+    {
+      "id": "1772903334284561500/ack",
+      "type": "ack",
+      "timestamp": 1772903334288,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ack_for": "1772903334284561500",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772903334284561500",
+      "type": "chat",
+      "timestamp": 1772903334284,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "."
+      },
+      "signature": "58t9GCY4la0vMPCMFpqtGfTJwkfg44yUAros6CUC3xwrBTxM8JNgm+Rt/LBnhQVEmQymazNU7a1PmmRa04kXCw=="
+    },
+    {
+      "id": "1772903334454369200/ack",
+      "type": "ack",
+      "timestamp": 1772903334456,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ack_for": "1772903334454369200",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772903334454369200",
+      "type": "chat",
+      "timestamp": 1772903334454,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "."
+      },
+      "signature": "mjg0u5n3wjXiJyQtoOVUbtJyiCM7VCfkstENNE/P4ekdnfD1OiqUoz7ASRI/7KXUqbYW7drFS3t0y1Jf3KDlDg=="
+    },
+    {
+      "id": "1772903334624342200/ack",
+      "type": "ack",
+      "timestamp": 1772903334625,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ack_for": "1772903334624342200",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772903334624342200",
+      "type": "chat",
+      "timestamp": 1772903334624,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "."
+      },
+      "signature": "YHbifNg7HuZdOUC+wvpEHXMVUkqHy2/QuLbli0+5jZJLxxYkaH4WXI/Sl6tAXq5lNKLnnaH08R80XX8wioaUAg=="
+    },
+    {
+      "id": "1772903334968537900/ack",
+      "type": "ack",
+      "timestamp": 1772903334970,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ack_for": "1772903334968537900",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772903334968537900",
+      "type": "chat",
+      "timestamp": 1772903334968,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "."
+      },
+      "signature": "b3VnF8TPhGCkzwUYvs9T32npvE0OP7I3v/ykC08ieFRsUyS/vvgUe6FhcW3vkpzI/etDlyZUzNvhjXPoAkHeDQ=="
+    },
+    {
+      "id": "1772903336689542900/ack",
+      "type": "ack",
+      "timestamp": 1772903336691,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ack_for": "1772903336689542900",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772903336689542900",
+      "type": "chat",
+      "timestamp": 1772903336689,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "."
+      },
+      "signature": "5ZVwHkQisvnDC4CN1GJ6aHBNiHzv0Iu8DyDDwZdHT503uv3jIE+51Wi6asWqewKxFW9Nr5E4XJLddJOZspMgDQ=="
+    },
+    {
+      "id": "1772903337272778100/ack",
+      "type": "ack",
+      "timestamp": 1772903337274,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ack_for": "1772903337272778100",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772903337272778100",
+      "type": "chat",
+      "timestamp": 1772903337272,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "."
+      },
+      "signature": "tZxAGO2LDgK4tQDWkGPNiY1NYJl4Gw1xqMx5/i1PTb0ePBgcIA9t5LyKhUsk2F7KRMLZyaDOzhKGuoZTL+87Ag=="
+    },
+    {
+      "id": "1772903338404195800/ack",
+      "type": "ack",
+      "timestamp": 1772903338406,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ack_for": "1772903338404195800",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772903338404195800",
+      "type": "chat",
+      "timestamp": 1772903338404,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "."
+      },
+      "signature": "OfY32U/RyaGaf1lgwCTPDXc4VaQ9WHR1K9g6rD++SYK6uoh81x6PO8pvgxPNvQpz719L88B4t9YkBKVJ6j8hBw=="
+    },
+    {
+      "id": "1772903338970501900/ack",
+      "type": "ack",
+      "timestamp": 1772903338973,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ack_for": "1772903338970501900",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772903338970501900",
+      "type": "chat",
+      "timestamp": 1772903338970,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "."
+      },
+      "signature": "M9B11ruUDf1guJCmmlvZCVpVjjpkclTw5nV60FQPCHZ6vtu23F1MAUkj5yke54S9Lt0TOk5mgTADPWCK3EoLBg=="
+    },
+    {
+      "id": "1772903407879338200",
+      "type": "chat",
+      "timestamp": 1772903407879,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "привет"
+      },
+      "signature": "+NgWr4dRKkZWmho0bdeXpKYx5/k4EQVtxJCH7G1SodlWTuJcHcEZu5PhvCMO6evGAnpUPIEGyaL596gBKlVyAA=="
+    },
+    {
+      "id": "1772903411289823600/ack",
+      "type": "ack",
+      "timestamp": 1772903411292,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ack_for": "1772903411289823600",
+      "payload": null,
+      "signature": null
+    },
+    {
+      "id": "1772903411289823600",
+      "type": "chat",
+      "timestamp": 1772903411289,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "как дела"
+      },
+      "signature": "giG1cLliywN7UTyDgyBd3hQV4y0wGEME+BCGLvY8oCpMyRxQO29q5EE9vHcf7z8g2gldPu2XRbVLCZ+YpQnxCw=="
+    },
+    {
+      "id": "1772903414117319400",
+      "type": "chat",
+      "timestamp": 1772903414117,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "хооршо"
+      },
+      "signature": "Cw7guHj9fX38XJRT4SDeBoQNpqNBv3Qvk9WQpJtnBOt7I+ra0UPzpafgxo1F4nkLv0l1Zy+FIF7gIQA4vG3wDg=="
     }
   ],
-  "read_up_to": "1772879242199517900"
+  "read_up_to": "1772903414117319400"
 }
