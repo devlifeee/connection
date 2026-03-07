@@ -137,9 +137,13 @@ function PresenceChatList({ activeDialog, onSelect, unread }: { activeDialog: st
   
   const peers = useMemo(() => data?.peers ?? [], [data?.peers]);
   const filteredPeers = useMemo(() => {
-     if (!searchTerm) return peers;
+     // Filter peers to show only registered users (those with a display_name)
+     const registeredPeers = peers.filter(p => p.payload.display_name && p.payload.display_name.trim() !== "");
+     
+     if (!searchTerm) return registeredPeers;
+     
      const term = searchTerm.toLowerCase();
-     return peers.filter(p => {
+     return registeredPeers.filter(p => {
          const name = p.payload.display_name?.toLowerCase() || '';
          const id = p.payload.peer_id.toLowerCase();
          return name.includes(term) || id.includes(term);

@@ -146,11 +146,22 @@ func Start(ctx context.Context, cfg Config) (*Runtime, error) {
 		return nil, err
 	}
 
+    // Load profile first to initialize presence store correctly
+	profilePath := filepath.Join(cfg.DataDir, "profile.json")
+    displayName := cfg.DisplayName
+	if b, err := os.ReadFile(profilePath); err == nil {
+		type profile struct{ DisplayName string `json:"display_name"` }
+		var pr profile
+		if json.Unmarshal(b, &pr) == nil && pr.DisplayName != "" {
+			displayName = pr.DisplayName
+		}
+	}
+
 	pdb := presence.NewStore(presence.Self{
-		DisplayName:  cfg.DisplayName,
+		DisplayName:  displayName,
 		Version:      cfg.Version,
 		Capabilities: cfg.Capabilities,
-	})
+	}, cfg.DataDir)
 	ps, err := presence.Start(ctx, h, pdb, cfg.ProtocolPresence, cfg.PresenceInterval)
 	if err != nil {
 		_ = md.Close()
@@ -159,23 +170,8 @@ func Start(ctx context.Context, cfg Config) (*Runtime, error) {
 		return nil, err
 	}
 
-	// Load profile
-	profilePath := filepath.Join(cfg.DataDir, "profile.json")
-	if b, err := os.ReadFile(profilePath); err == nil {
-		type profile struct{ DisplayName string `json:"display_name"` }
-		var pr profile
-		if json.Unmarshal(b, &pr) == nil && pr.DisplayName != "" {
-			pdb.UpdateSelf(presence.Self{
-				DisplayName:  pr.DisplayName,
-				Version:      cfg.Version,
-				Capabilities: cfg.Capabilities,
-			})
-			cfg.DisplayName = pr.DisplayName
-		}
-	}
-
 	srv := api.NewServer(h, cfg.HTTPAddr, api.Info{
-		DisplayName:  cfg.DisplayName,
+		DisplayName:  displayName,
 		Version:      cfg.Version,
 		Capabilities: cfg.Capabilities,
 		Protocols: map[string]string{

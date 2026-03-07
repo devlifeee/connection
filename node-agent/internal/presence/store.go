@@ -4,12 +4,16 @@ import (
 	"sort"
 	"sync"
 	"time"
+    "os"
+    "path/filepath"
+    "encoding/json"
+    "log"
 )
 
 type Self struct {
-	DisplayName  string
-	Version      string
-	Capabilities []string
+	DisplayName  string   `json:"display_name"`
+	Version      string   `json:"version"`
+	Capabilities []string `json:"capabilities"`
 }
 
 type Payload struct {
@@ -28,16 +32,47 @@ type PeerPresence struct {
 }
 
 type Store struct {
-	mu    sync.RWMutex
-	self  Self
-	peers map[string]PeerPresence
+	mu       sync.RWMutex
+	self     Self
+	peers    map[string]PeerPresence
+    dataDir  string
+    savePath string
 }
 
-func NewStore(self Self) *Store {
-	return &Store{
-		self:  self,
-		peers: map[string]PeerPresence{},
+func NewStore(self Self, dataDir string) *Store {
+    s := &Store{
+		self:     self,
+		peers:    map[string]PeerPresence{},
+        dataDir:  dataDir,
+        savePath: filepath.Join(dataDir, "presence_store.json"),
 	}
+    s.load()
+    return s
+}
+
+func (s *Store) load() {
+    b, err := os.ReadFile(s.savePath)
+    if err != nil {
+        return
+    }
+    var saved struct {
+        Self Self `json:"self"`
+    }
+    if err := json.Unmarshal(b, &saved); err == nil {
+        if saved.Self.DisplayName != "" {
+            s.self.DisplayName = saved.Self.DisplayName
+        }
+    }
+}
+
+func (s *Store) save() {
+    data := struct {
+        Self Self `json:"self"`
+    }{
+        Self: s.self,
+    }
+    b, _ := json.MarshalIndent(data, "", "  ")
+    _ = os.WriteFile(s.savePath, b, 0644)
 }
 
 func (s *Store) Self() Self {
@@ -50,6 +85,7 @@ func (s *Store) UpdateSelf(self Self) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.self = self
+    s.save()
 }
 
 func (s *Store) Upsert(p Payload) {

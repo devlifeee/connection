@@ -1,0 +1,48 @@
+{
+  "messages": [
+    {
+      "id": "1772877380523543900",
+      "type": "chat",
+      "timestamp": 1772877380523,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "1"
+      },
+      "signature": "XFtTQyUNLOIP9uvkrJsvXquxAPoBZ0q1Aj6B/huU1/QDIZK1IhrFqM5KJW1V6i1QCSdj5W6/OSFRgYjk8FU2Cw=="
+    },
+    {
+      "id": "1772877386974745300",
+      "type": "chat",
+      "timestamp": 1772877386974,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "раз два"
+      },
+      "signature": "qiKmx8oyo2xHIDCqlirgmcRe3Xgoj5krLiA9yFWN9yaULOvV84zEsi0k4BKhI3vu8za0XDITMLwsApLwe29MBQ=="
+    },
+    {
+      "id": "1772878907346836100",
+      "type": "chat",
+      "timestamp": 1772878907346,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "1"
+      },
+      "signature": "dwY8a0neKj667pSraz1PYOzcUhsjU8eq18X9Iq8R5vc0sUNi+C0ciA2xFMq0crO27h/3oLznm25CS2kLYD++DA=="
+    },
+    {
+      "id": "1772879242199517900",
+      "type": "chat",
+      "timestamp": 1772879242199,
+      "sender": "12D3KooWHyez5fTnjG969vFqM4EAQVZCgiyWjzEZdLdnvSPBwpDF",
+      "ttl": 8,
+      "payload": {
+        "text": "33;2;24\"4"
+      },
+      "signature": "stewRWWaE5q7+MnhIl+v3WLmN4Lxdsssr5sGpVK+XCvllayhuE6WCa3phhsuXrlnyrR+pf7t/tGyRP262TSwBg=="
+    }
+  ]
+}
