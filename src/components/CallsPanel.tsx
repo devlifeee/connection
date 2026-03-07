@@ -19,7 +19,7 @@ interface Props {
 
 const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
   const { data: peersData } = useNodeAgentPresencePeers();
-  const { events, getEventsByType } = useSession();
+  const { events, activeCall, setActiveCall } = useSession();
   const [callState, setCallState] = useState<CallState>('idle');
   const [targetPeerId, setTargetPeerId] = useState<string>(initialPeerId || "");
   const [currentCall, setCurrentCall] = useState<Call | null>(null);
@@ -35,6 +35,7 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
   
   // Track processed events to avoid duplicates
   const processedEvents = useRef<Set<string>>(new Set());
+  const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
 
   // WebRTC Refs
   const peerConnection = useRef<RTCPeerConnection | null>(null);
@@ -57,17 +58,24 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
     try { localStorage.setItem('svyaz-call-history', JSON.stringify(items.slice(-50))); } catch (e) { console.error(e); }
   }, []);
 
-  const endCall = useCallback(() => {
+  const endCall = useCallback((arg?: boolean | any) => {
+    const clearGlobal = typeof arg === 'boolean' ? arg : true;
     console.log('Ending call:', currentCall?.id);
     if (currentCall) {
         nodeAgentApi.hangupCall(currentCall.id).catch((e) => {
             console.error('Failed to hangup call:', e);
         });
     }
+    // Clear global active call
+    if (clearGlobal) {
+        setActiveCall(null);
+    }
+
     if (peerConnection.current) {
         peerConnection.current.close();
         peerConnection.current = null;
     }
+    pendingCandidates.current = [];
     if (localStream.current) {
         localStream.current.getTracks().forEach(t => t.stop());
         localStream.current = null;
@@ -195,6 +203,13 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
   }, [videoEnabled, callState, debugVideoState]);
 
   const getLocalStream = useCallback(async (video: boolean) => {
+    // Check if mediaDevices is supported
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error("Media devices API not supported or context is not secure (http)");
+        toast.error("Video calls require HTTPS or localhost");
+        return null;
+    }
+
     try {
       const constraints = {
         audio: {
@@ -227,7 +242,17 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
       return stream;
     } catch (err) {
       console.error('Failed to get local stream', err);
-      toast.error('Media access denied');
+      // In http/localhost context or if device missing, fallback to mock stream or audio-only if video failed
+      if (video && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          console.warn("Video access failed, trying audio only fallback");
+          try {
+             const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+             localStream.current = audioStream;
+             return audioStream;
+          } catch {}
+      }
+      
+      toast.error('Media access denied. Check permissions or HTTPS context.');
       return null;
     }
   }, []);
@@ -271,13 +296,24 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
   }, [targetPeerId, initialPeerId, getLocalStream, initPeerConnection, endCall, history, saveHistory]);
 
   const acceptCall = useCallback(async (video: boolean) => {
-    console.log('Accepting call:', currentCall?.id, 'video:', video);
-    if (!currentCall) return;
-    const sdp = (currentCall as any).sdp; // Retrieved from event
+    // If we are already connected or connecting, don't re-accept unless it's a retry
+    if (callState === 'connected') return;
+
+    // Use activeCall if currentCall is not set yet
+    const callToAnswer = currentCall || activeCall;
+    console.log('Accepting call:', callToAnswer?.id, 'video:', video);
+    
+    if (!callToAnswer) return;
+    const sdp = (callToAnswer as any).sdp; // Retrieved from event
     
     setVideoEnabled(video);
     const stream = await getLocalStream(video);
-    if (!stream) return;
+    // If we can't get a stream, we still proceed? No, we need stream for bi-directional. 
+    // But maybe we can answer audio-only if video fails. getLocalStream handles fallback.
+    if (!stream) {
+        console.error("No local stream available, cannot accept call");
+        return;
+    }
 
     const pc = initPeerConnection();
     stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -292,20 +328,50 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
         await pc.setLocalDescription(answer);
         console.log('Created answer:', answer);
 
-        await nodeAgentApi.answerCall(currentCall.id, answer.sdp!);
+        await nodeAgentApi.answerCall(callToAnswer.id, answer.sdp!);
         console.log('Call answered');
         setCallState('connected');
         startTimer();
         callStartAt.current = Date.now();
-        if (currentCall) {
-          saveHistory([...history, { peer: currentCall.peer_id, type: video ? 'video' : 'audio', dir: 'входящий', ts: Date.now(), dur: 0 }]);
-        }
+        saveHistory([...history, { peer: callToAnswer.peer_id, type: video ? 'video' : 'audio', dir: 'входящий', ts: Date.now(), dur: 0 }]);
     } catch (e) {
         console.error('Failed to accept call:', e);
         toast.error("Failed to accept call");
         endCall();
     }
-  }, [currentCall, getLocalStream, initPeerConnection, startTimer, endCall, history, saveHistory]);
+  }, [currentCall, activeCall, getLocalStream, initPeerConnection, startTimer, endCall, history, saveHistory, callState]);
+
+  // Watch for active call from global session (e.g. accepted via Modal)
+  useEffect(() => {
+    // Case 1: Switching calls (activeCall is different from currentCall)
+    if (activeCall && currentCall && activeCall.id !== currentCall.id) {
+        console.log('Switching calls: ending', currentCall.id, 'starting', activeCall.id);
+        endCall(false); // End current call but keep activeCall in global state
+        return;
+    }
+
+    // Case 2: New call when idle
+    if (activeCall && !currentCall && callState === 'idle') {
+      console.log('Picking up active call from global session:', activeCall);
+      setCurrentCall(activeCall);
+      
+      // Check intent from storage
+      const intentStr = localStorage.getItem('svyaz-call-intent');
+      let isVideo = activeCall.type === 'video';
+      if (intentStr) {
+          try {
+              const intent = JSON.parse(intentStr);
+              if (intent.video !== undefined) isVideo = intent.video;
+          } catch {
+              if (intentStr === 'video') isVideo = true;
+          }
+      }
+      localStorage.removeItem('svyaz-call-intent');
+      
+      // Trigger WebRTC acceptance
+      acceptCall(isVideo);
+    }
+  }, [activeCall, currentCall, callState, acceptCall, endCall]);
 
   useEffect(() => {
     startCallRef.current = startCall;
@@ -326,17 +392,9 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
     console.log('Handling event:', event.type, event);
     const pc = peerConnection.current;
     switch (event.type) {
-      case 'incoming_call':
-        if (callState === 'idle') {
-          setCurrentCall(event.call);
-          setCallState('incoming');
-          (event.call as any).sdp = (event as any).sdp;
-        } else {
-          if (event.call?.id) {
-            nodeAgentApi.hangupCall(event.call.id);
-          }
-        }
-        break;
+      // incoming_call is handled by Global Session + Modal now.
+      // We only care about active calls here.
+      
       case 'call_accepted':
         if (currentCall && currentCall.id === event.call.id && pc) {
           pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: (event as any).sdp }))
@@ -350,20 +408,39 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
         }
         break;
       case 'ice_candidate':
-        if (currentCall && currentCall.id === event.call_id && pc) {
-          if (pc.remoteDescription) {
+        // Handle ICE candidates for current call
+        const callId = currentCall?.id || activeCall?.id;
+        if (callId && callId === event.call_id) {
+          if (pc && pc.remoteDescription) {
             pc.addIceCandidate((event as any).candidate).catch(() => {});
+          } else {
+            console.log('Queueing ICE candidate');
+            pendingCandidates.current.push((event as any).candidate);
           }
         }
         break;
       case 'hangup':
-        if (currentCall && currentCall.id === event.call_id) {
+        if ((currentCall && currentCall.id === event.call_id) || (activeCall && activeCall.id === event.call_id)) {
           endCall();
           toast.info("Call ended by peer");
         }
         break;
     }
-  }, [callState, currentCall, endCall, startTimer]);
+  }, [callState, currentCall, activeCall, endCall, startTimer]);
+
+  // Process events from session
+  useEffect(() => {
+    if (!events || events.length === 0) return;
+    
+    // Process only new events
+    events.forEach(event => {
+        const eventKey = `${event.timestamp}-${event.type}-${event.call_id || 'global'}`;
+        if (!processedEvents.current.has(eventKey)) {
+            processedEvents.current.add(eventKey);
+            handleEvent(event as unknown as MediaEvent);
+        }
+    });
+  }, [events, handleEvent]);
 
   
   
@@ -514,12 +591,14 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
                         <SelectValue placeholder="Выберите собеседника..." />
                     </SelectTrigger>
                     <SelectContent>
-                        {peersData?.peers.map(p => (
+                        {peersData?.peers
+                            .filter(p => p.payload.display_name && p.payload.display_name.trim() !== "" && !p.payload.display_name.startsWith("Relay-"))
+                            .map(p => (
                             <SelectItem key={p.payload.peer_id} value={p.payload.peer_id}>
                                 {p.payload.display_name || p.payload.peer_id.substring(0, 8)}
                             </SelectItem>
                         ))}
-                        {(!peersData?.peers || peersData.peers.length === 0) && (
+                        {(!peersData?.peers || peersData.peers.filter(p => p.payload.display_name && p.payload.display_name.trim() !== "" && !p.payload.display_name.startsWith("Relay-")).length === 0) && (
                             <div className="p-2 text-sm text-muted-foreground text-center">Нет контактов онлайн</div>
                         )}
                     </SelectContent>
@@ -538,7 +617,9 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
                    <h3 className="text-sm font-semibold mb-2">История звонков</h3>
                    <div className="space-y-2">
                      {history.length === 0 && <div className="text-xs text-muted-foreground">Пока пусто</div>}
-                     {history.slice().reverse().slice(0, historyLimit).map((h, i) => (
+                     {history
+                        .filter(h => !h.peer.startsWith("Relay-"))
+                        .slice().reverse().slice(0, historyLimit).map((h, i) => (
                        <div key={i} className="text-xs bg-card/60 border border-border/40 rounded-md px-3 py-2 flex items-center justify-between">
                          <span className="font-mono">{new Date(h.ts).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}</span>
                          <span className="uppercase tracking-wide">{h.type === 'video' ? 'Видео' : 'Аудио'}</span>
@@ -546,7 +627,7 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
                          <span className="font-mono opacity-70">{Math.floor(h.dur/60).toString().padStart(2,'0')}:{(h.dur%60).toString().padStart(2,'0')}</span>
                        </div>
                      ))}
-                     {history.length > historyLimit && (
+                     {history.filter(h => !h.peer.startsWith("Relay-")).length > historyLimit && (
                        <button 
                          onClick={() => setHistoryLimit(prev => prev + 5)}
                          className="w-full text-xs text-primary hover:text-primary/80 py-2 font-medium transition-colors"

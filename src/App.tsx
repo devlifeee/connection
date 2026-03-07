@@ -7,6 +7,8 @@ import { useEffect, useState, useCallback } from "react";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import RegistrationScreen from "@/components/RegistrationScreen";
+import { SessionProvider } from "@/hooks/useSession";
+import IncomingCallModal from "@/components/IncomingCallModal";
 
 const queryClient = new QueryClient();
 
@@ -32,12 +34,15 @@ const RouterContent = () => {
   }, [navigate]);
 
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to={user ? "/home" : "/registration"} replace />} />
-      <Route path="/registration" element={<RegistrationScreen onRegister={handleRegister} />} />
-      <Route path="/home" element={user ? <Index /> : <Navigate to="/registration" replace />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <>
+      <IncomingCallModal />
+      <Routes>
+        <Route path="/" element={<Navigate to={user ? "/home" : "/registration"} replace />} />
+        <Route path="/registration" element={<RegistrationScreen onRegister={handleRegister} />} />
+        <Route path="/home" element={user ? <Index /> : <Navigate to="/registration" replace />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
   );
 };
 
@@ -46,9 +51,11 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <RouterContent />
-      </BrowserRouter>
+      <SessionProvider>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <RouterContent />
+        </BrowserRouter>
+      </SessionProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoadingScreen from '@/components/LoadingScreen';
 import RegistrationScreen from '@/components/RegistrationScreen';
 import Sidebar, { type NavSection } from '@/components/Sidebar';
@@ -25,6 +25,7 @@ type AppState = 'loading' | 'registration' | 'main';
 const Index = () => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { sessionState, events } = useSession();
   const [appState, setAppState] = useState<AppState>('loading');
   const [user, setUser] = useState<UserData | null>(null);
@@ -33,6 +34,21 @@ const Index = () => {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
+
+  // Handle query params for tab switching
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'calls') {
+        setActiveSection('calls');
+        setSearchParams(prev => {
+            const newParams = new URLSearchParams(prev);
+            newParams.delete('tab');
+            return newParams;
+        }, { replace: true });
+    } else if (tab === 'chats') {
+        setActiveSection('chats');
+    }
+  }, [searchParams, setSearchParams]);
 
   // Load user from localStorage
   useEffect(() => {
