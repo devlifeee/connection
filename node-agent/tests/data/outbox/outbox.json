@@ -2,20 +2,20 @@
   {
     "peer_id": "12D3KooWPXB3NwoNmhzQAw1Fh9jMzRvApebG5UCWixGkKB9gvrqH",
     "envelope": {
-      "id": "1772824340858607000",
+      "id": "1772861337117525000",
       "type": "chat",
-      "timestamp": 1772824340858,
+      "timestamp": 1772861337117,
       "sender": "12D3KooWPXB3NwoNmhzQAw1Fh9jMzRvApebG5UCWixGkKB9gvrqH",
       "ttl": 8,
       "payload": {
         "text": "queued-retry"
       },
-      "signature": "f1Df3NUp2myVKZcJFLxMG/Km2wpFoKpvpavJLAkJm3nALzlVrKPLKzqDgfXDC59T5WImI8bOY7ej57ldhL0+CQ=="
+      "signature": "0oemR6MkpkGT4sVzBR0tpGoewByY+jfvNeHTaLg9ujj6jY+ueEu466s0eoElLH5qFlihskLL/kWYGbx7UwOIDQ=="
     },
-    "next_attempt_ms": 1772824342359,
+    "next_attempt_ms": 1772861338618,
     "attempts": 0,
     "max_retries": 5,
     "ttl": 4,
-    "created_ms": 1772824340859
+    "created_ms": 1772861337118
   }
 ]

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+	"mime"
 
 	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -41,6 +42,11 @@ type Manager struct {
 	peerRate  map[string]int64
 	paused    map[string]struct{}
 	sem       chan struct{}
+	onComplete func(*Transfer)
+	onFail    func(*Transfer, string)
+	ackObs    func(ms int64)
+	statePath string
+	acceptFn  func(peerID string, meta Metadata) bool
 }
 
 func NewManager(h host.Host, cfg Config) *Manager {
@@ -55,7 +61,7 @@ func NewManager(h host.Host, cfg Config) *Manager {
 		log.Printf("Failed to create downloads directory: %v", err)
 	}
 
-	return &Manager{
+	m := &Manager{
 		host:      h,
 		config:    cfg,
 		transfers: make(map[string]*Transfer),
@@ -64,6 +70,9 @@ func NewManager(h host.Host, cfg Config) *Manager {
 		paused:    make(map[string]struct{}),
 		sem:       make(chan struct{}, 2), // default parallelism 2
 	}
+	m.statePath = filepath.Join(cfg.DownloadsDir, ".transfers_state.json")
+	m.loadState()
+	return m
 }
 
 func (m *Manager) DownloadsDir() string {
@@ -71,6 +80,44 @@ func (m *Manager) DownloadsDir() string {
 }
 func (m *Manager) Start() {
 	m.host.SetStreamHandler(ProtocolID, m.handleStream)
+}
+
+func (m *Manager) SetOnComplete(fn func(*Transfer)) { m.onComplete = fn }
+func (m *Manager) SetOnFail(fn func(*Transfer, string)) { m.onFail = fn }
+func (m *Manager) SetAckObserver(fn func(ms int64)) { m.ackObs = fn }
+func (m *Manager) SetAcceptFilter(fn func(peerID string, meta Metadata) bool) { m.acceptFn = fn }
+
+func (m *Manager) saveState() {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	list := make([]*Transfer, 0, len(m.transfers))
+	for _, t := range m.transfers {
+		val := *t
+		list = append(list, &val)
+	}
+	b, err := json.Marshal(list)
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(m.statePath, b, 0644)
+}
+
+func (m *Manager) loadState() {
+	b, err := os.ReadFile(m.statePath)
+	if err != nil {
+		return
+	}
+	var list []*Transfer
+	if err := json.Unmarshal(b, &list); err != nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, t := range list {
+		if t != nil {
+			m.transfers[t.ID] = t
+		}
+	}
 }
 
 func (m *Manager) ListTransfers() []*Transfer {
@@ -135,6 +182,7 @@ func (m *Manager) SendFile(ctx context.Context, targetPeerID string, filePath st
 	m.mu.Lock()
 	m.transfers[transferID] = t
 	m.mu.Unlock()
+	m.saveState()
 
 	go func() {
 		select {
@@ -156,183 +204,251 @@ func (m *Manager) SendFile(ctx context.Context, targetPeerID string, filePath st
 func (m *Manager) processSend(ctx context.Context, t *Transfer) {
 	m.updateStatus(t.ID, StatusSending)
 
-	file, err := os.Open(t.LocalPath)
-	if err != nil {
-		m.failTransfer(t.ID, "failed to open file: "+err.Error())
-		return
-	}
-	defer file.Close()
-
-	// Calculate hash
-	hasher := sha256.New()
-	if _, err := io.Copy(hasher, file); err != nil {
-		m.failTransfer(t.ID, "failed to hash file: "+err.Error())
-		return
-	}
-	t.Metadata.Hash = hex.EncodeToString(hasher.Sum(nil))
-	
-	// Rewind
-	if _, err := file.Seek(0, 0); err != nil {
-		m.failTransfer(t.ID, "failed to rewind file: "+err.Error())
-		return
-	}
-
-	// Connect
-	pid, err := peer.Decode(t.PeerID)
-	if err != nil {
-		m.failTransfer(t.ID, "invalid peer id: "+err.Error())
-		return
-	}
-
-	stream, err := m.host.NewStream(ctx, pid, ProtocolID)
-	if err != nil {
-		m.failTransfer(t.ID, "failed to connect: "+err.Error())
-		return
-	}
-	defer stream.Close()
-
-	rw := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
-
-	// 1. Send Offer
-	if err := writeJSON(rw, MsgOffer, OfferPayload{Metadata: t.Metadata}); err != nil {
-		m.failTransfer(t.ID, "send offer failed: "+err.Error())
-		return
-	}
-
-	// 2. Wait Accept
-	msg, err := readJSON(rw)
-	if err != nil {
-		m.failTransfer(t.ID, "read accept failed: "+err.Error())
-		return
-	}
-
-	if msg.Type == MsgReject {
-		var p RejectPayload
-		json.Unmarshal(msg.Payload, &p)
-		m.failTransfer(t.ID, "rejected: "+p.Reason)
-		return
-	}
-	
-	if msg.Type != MsgAccept {
-		m.failTransfer(t.ID, "unexpected response to offer: "+string(msg.Type))
-		return
-	}
-
-	var accept AcceptPayload
-	json.Unmarshal(msg.Payload, &accept)
-	
-	if accept.Offset > 0 {
-		if _, err := file.Seek(accept.Offset, 0); err != nil {
-			m.failTransfer(t.ID, "seek failed: "+err.Error())
+	maxRetries := 5
+	backoff := 800 * time.Millisecond
+	retries := 0
+	for {
+		file, err := os.Open(t.LocalPath)
+		if err != nil {
+			m.failTransfer(t.ID, "failed to open file: "+err.Error())
 			return
 		}
-		m.updateProgress(t.ID, accept.Offset)
-	}
 
-	// 3. Send Loop
-	buf := make([]byte, ChunkSize)
-	offset := accept.Offset
-	var lastSent time.Time
-	var sentBytesInWindow int64
-	windowStart := time.Now()
+		ext := filepath.Ext(t.LocalPath)
+		if mt := mime.TypeByExtension(ext); mt != "" {
+			t.Metadata.MimeType = mt
+		}
+		hasher := sha256.New()
+		if _, err := io.Copy(hasher, file); err != nil {
+			_ = file.Close()
+			m.failTransfer(t.ID, "failed to hash file: "+err.Error())
+			return
+		}
+		t.Metadata.Hash = hex.EncodeToString(hasher.Sum(nil))
+		if _, err := file.Seek(0, 0); err != nil {
+			_ = file.Close()
+			m.failTransfer(t.ID, "failed to rewind file: "+err.Error())
+			return
+		}
 
-	for offset < t.TotalSize {
-		// pause support (wait while paused)
-		for {
+		pid, err := peer.Decode(t.PeerID)
+		if err != nil {
+			_ = file.Close()
+			m.failTransfer(t.ID, "invalid peer id: "+err.Error())
+			return
+		}
+
+		stream, err := m.host.NewStream(ctx, pid, ProtocolID)
+		if err != nil {
+			_ = file.Close()
+			if retries < maxRetries {
+				retries++
+				time.Sleep(time.Duration(retries) * backoff)
+				continue
+			}
+			m.failTransfer(t.ID, "failed to connect: "+err.Error())
+			return
+		}
+		rw := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
+
+		if err := writeJSON(rw, MsgOffer, OfferPayload{Metadata: t.Metadata}); err != nil {
+			_ = file.Close()
+			_ = stream.Close()
+			if retries < maxRetries {
+				retries++
+				time.Sleep(time.Duration(retries) * backoff)
+				continue
+			}
+			m.failTransfer(t.ID, "send offer failed: "+err.Error())
+			return
+		}
+
+		msg, err := readJSON(rw)
+		if err != nil {
+			_ = file.Close()
+			_ = stream.Close()
+			if retries < maxRetries {
+				retries++
+				time.Sleep(time.Duration(retries) * backoff)
+				continue
+			}
+			m.failTransfer(t.ID, "read accept failed: "+err.Error())
+			return
+		}
+
+		if msg.Type == MsgReject {
+			var p RejectPayload
+			json.Unmarshal(msg.Payload, &p)
+			_ = file.Close()
+			_ = stream.Close()
+			m.failTransfer(t.ID, "rejected: "+p.Reason)
+			return
+		}
+		if msg.Type != MsgAccept {
+			_ = file.Close()
+			_ = stream.Close()
+			m.failTransfer(t.ID, "unexpected response to offer: "+string(msg.Type))
+			return
+		}
+
+		var accept AcceptPayload
+		json.Unmarshal(msg.Payload, &accept)
+		if accept.Offset > 0 {
+			if _, err := file.Seek(accept.Offset, 0); err != nil {
+				_ = file.Close()
+				_ = stream.Close()
+				m.failTransfer(t.ID, "seek failed: "+err.Error())
+				return
+			}
+			m.updateProgress(t.ID, accept.Offset)
+		}
+
+		buf := make([]byte, ChunkSize)
+		offset := accept.Offset
+		var lastSent time.Time
+		var sentBytesInWindow int64
+		windowStart := time.Now()
+
+		for offset < t.TotalSize {
+			chunkStart := time.Now()
+			for {
+				m.mu.RLock()
+				_, isPaused := m.paused[t.ID]
+				m.mu.RUnlock()
+				if !isPaused {
+					break
+				}
+				time.Sleep(200 * time.Millisecond)
+			}
+
 			m.mu.RLock()
-			_, isPaused := m.paused[t.ID]
+			_, isCancelled := m.cancelled[t.ID]
 			m.mu.RUnlock()
-			if !isPaused {
+			if isCancelled {
+				_ = file.Close()
+				_ = stream.Close()
+				m.failTransfer(t.ID, "cancelled")
+				return
+			}
+
+			n, err := file.Read(buf)
+			if err != nil && err != io.EOF {
+				_ = file.Close()
+				_ = stream.Close()
+				if retries < maxRetries {
+					retries++
+					time.Sleep(time.Duration(retries) * backoff)
+					goto retryLoop
+				}
+				m.failTransfer(t.ID, "read file failed: "+err.Error())
+				return
+			}
+			if n == 0 {
 				break
 			}
-			time.Sleep(200 * time.Millisecond)
-		}
 
-		// cancellation check
-		m.mu.RLock()
-		_, isCancelled := m.cancelled[t.ID]
-		m.mu.RUnlock()
-		if isCancelled {
-			m.failTransfer(t.ID, "cancelled")
-			return
-		}
-
-		n, err := file.Read(buf)
-		if err != nil && err != io.EOF {
-			m.failTransfer(t.ID, "read file failed: "+err.Error())
-			return
-		}
-		if n == 0 {
-			break
-		}
-
-		chunk := ChunkPayload{
-			TransferID: t.ID,
-			Offset:     offset,
-			Data:       buf[:n],
-		}
-
-		if err := writeJSON(rw, MsgChunk, chunk); err != nil {
-			m.failTransfer(t.ID, "send chunk failed: "+err.Error())
-			return
-		}
-
-		// Simple rate limiting
-		// Determine effective rate limit (peer override wins)
-		m.mu.RLock()
-		effectiveBps := m.config.RateLimitBps
-		if bps, ok := m.peerRate[t.PeerID]; ok && bps >= 0 {
-			effectiveBps = bps
-		}
-		m.mu.RUnlock()
-		if effectiveBps > 0 {
-			now := time.Now()
-			if lastSent.IsZero() {
-				lastSent = now
-				windowStart = now
-				sentBytesInWindow = 0
+			chunk := ChunkPayload{
+				TransferID: t.ID,
+				Offset:     offset,
+				Data:       buf[:n],
 			}
-			sentBytesInWindow += int64(n)
-			elapsed := now.Sub(windowStart)
-			allowed := float64(effectiveBps) * elapsed.Seconds()
-			if float64(sentBytesInWindow) > allowed {
-				overBytes := float64(sentBytesInWindow) - allowed
-				sleepDur := time.Duration(overBytes/float64(effectiveBps)*1e9) * time.Nanosecond
-				if sleepDur > 0 && sleepDur < 500*time.Millisecond {
-					time.Sleep(sleepDur)
+
+			if err := writeJSON(rw, MsgChunk, chunk); err != nil {
+				_ = file.Close()
+				_ = stream.Close()
+				if retries < maxRetries {
+					retries++
+					time.Sleep(time.Duration(retries) * backoff)
+					goto retryLoop
+				}
+				m.failTransfer(t.ID, "send chunk failed: "+err.Error())
+				return
+			}
+
+			m.mu.RLock()
+			effectiveBps := m.config.RateLimitBps
+			if bps, ok := m.peerRate[t.PeerID]; ok && bps >= 0 {
+				effectiveBps = bps
+			}
+			m.mu.RUnlock()
+			if effectiveBps > 0 {
+				now := time.Now()
+				if lastSent.IsZero() {
+					lastSent = now
+					windowStart = now
+					sentBytesInWindow = 0
+				}
+				sentBytesInWindow += int64(n)
+				elapsed := now.Sub(windowStart)
+				allowed := float64(effectiveBps) * elapsed.Seconds()
+				if float64(sentBytesInWindow) > allowed {
+					overBytes := float64(sentBytesInWindow) - allowed
+					sleepDur := time.Duration(overBytes/float64(effectiveBps)*1e9) * time.Nanosecond
+					if sleepDur > 0 && sleepDur < 500*time.Millisecond {
+						time.Sleep(sleepDur)
+					}
+				}
+				if elapsed >= time.Second {
+					windowStart = now
+					sentBytesInWindow = 0
+				}
+				lastSent = now
+			}
+
+			ackMsg, err := readJSON(rw)
+			if err != nil {
+				_ = file.Close()
+				_ = stream.Close()
+				if retries < maxRetries {
+					retries++
+					time.Sleep(time.Duration(retries) * backoff)
+					goto retryLoop
+				}
+				m.failTransfer(t.ID, "wait ack failed: "+err.Error())
+				return
+			}
+
+			if m.ackObs != nil {
+				ms := time.Since(chunkStart).Milliseconds()
+				if ms >= 0 && ms < 60000 {
+					m.ackObs(ms)
 				}
 			}
-			// Reset window every second
-			if elapsed >= time.Second {
-				windowStart = now
-				sentBytesInWindow = 0
+
+			if ackMsg.Type != MsgAck {
+				_ = file.Close()
+				_ = stream.Close()
+				if retries < maxRetries {
+					retries++
+					time.Sleep(time.Duration(retries) * backoff)
+					goto retryLoop
+				}
+				m.failTransfer(t.ID, "expected ack, got "+string(ackMsg.Type))
+				return
 			}
-			lastSent = now
+
+			offset += int64(n)
+			m.updateProgress(t.ID, offset)
 		}
 
-		// Wait Ack
-		ackMsg, err := readJSON(rw)
-		if err != nil {
-			m.failTransfer(t.ID, "wait ack failed: "+err.Error())
+		if err := writeJSON(rw, MsgComplete, CompletePayload{TransferID: t.ID, Hash: t.Metadata.Hash}); err != nil {
+			_ = file.Close()
+			_ = stream.Close()
+			if retries < maxRetries {
+				retries++
+				time.Sleep(time.Duration(retries) * backoff)
+				goto retryLoop
+			}
+			m.failTransfer(t.ID, "send complete failed: "+err.Error())
 			return
 		}
-
-		if ackMsg.Type != MsgAck {
-			m.failTransfer(t.ID, "expected ack, got "+string(ackMsg.Type))
-			return
-		}
-
-		offset += int64(n)
-		m.updateProgress(t.ID, offset)
-	}
-
-	// 4. Send Complete
-	if err := writeJSON(rw, MsgComplete, CompletePayload{TransferID: t.ID, Hash: t.Metadata.Hash}); err != nil {
-		m.failTransfer(t.ID, "send complete failed: "+err.Error())
+		_ = file.Close()
+		_ = stream.Close()
+		m.completeTransfer(t.ID)
 		return
+	retryLoop:
+		continue
 	}
-
-	m.completeTransfer(t.ID)
 }
 
 func (m *Manager) handleStream(stream network.Stream) {
@@ -356,6 +472,14 @@ func (m *Manager) handleStream(stream network.Stream) {
 	}
 
 	// Auto-accept logic (simplified for MVP)
+	// Trust-only filter if provided
+	if m.acceptFn != nil {
+		peerID := stream.Conn().RemotePeer().String()
+		if !m.acceptFn(peerID, offer.Metadata) {
+			_ = writeJSON(rw, MsgReject, RejectPayload{TransferID: offer.Metadata.ID, Reason: "not trusted"})
+			return
+		}
+	}
 	// Create transfer record
 	t := &Transfer{
 		ID:        offer.Metadata.ID,
@@ -389,6 +513,7 @@ func (m *Manager) handleStream(stream network.Stream) {
 	m.mu.Lock()
 	m.transfers[t.ID] = t
 	m.mu.Unlock()
+	m.saveState()
 
 	// 2. Send Accept
 	t.Offset = existingSize
@@ -399,7 +524,12 @@ func (m *Manager) handleStream(stream network.Stream) {
 
 	// 3. Receive Loop
 	hasher := sha256.New()
-	// If resuming, rehash existing file portion for final integrity (optional heavy op skipped here)
+	if existingSize > 0 {
+		if prev, err := os.Open(t.LocalPath); err == nil {
+			_, _ = io.CopyN(hasher, prev, existingSize)
+			_ = prev.Close()
+		}
+	}
 	
 	for {
 		// cancellation at receiver side is no-op for now
@@ -465,6 +595,7 @@ func (m *Manager) updateStatus(id string, status TransferStatus) {
 	if t, ok := m.transfers[id]; ok {
 		t.Status = status
 	}
+	go m.saveState()
 }
 
 func (m *Manager) updateProgress(id string, offset int64) {
@@ -473,6 +604,7 @@ func (m *Manager) updateProgress(id string, offset int64) {
 	if t, ok := m.transfers[id]; ok {
 		t.Offset = offset
 	}
+	go m.saveState()
 }
 
 func (m *Manager) failTransfer(id string, reason string) {
@@ -483,7 +615,12 @@ func (m *Manager) failTransfer(id string, reason string) {
 		t.Error = reason
 		t.EndTime = time.Now()
 		log.Printf("[FileTransfer] Failed %s: %s", id, reason)
+		if m.onFail != nil {
+			val := *t
+			go m.onFail(&val, reason)
+		}
 	}
+	go m.saveState()
 }
 
 func (m *Manager) completeTransfer(id string) {
@@ -493,7 +630,12 @@ func (m *Manager) completeTransfer(id string) {
 		t.Status = StatusCompleted
 		t.EndTime = time.Now()
 		log.Printf("[FileTransfer] Completed %s", id)
+		if m.onComplete != nil {
+			val := *t
+			go m.onComplete(&val)
+		}
 	}
+	go m.saveState()
 }
 
 // Protocol helpers

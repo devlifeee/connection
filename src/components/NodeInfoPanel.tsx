@@ -16,6 +16,14 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
   const peer = nodeId ? (data?.peers ?? []).find(p => p.payload.peer_id === nodeId) ?? null : null;
   const [peerInfo, setPeerInfo] = useState<{ p2p_addrs: string[]; fingerprint?: string } | null>(null);
   const chatHistory = useChatHistory(nodeId || undefined);
+  // Block contact logic (stored locally)
+  const [isBlocked, setIsBlocked] = useState(false);
+  useEffect(() => {
+      try {
+          const blocked = JSON.parse(localStorage.getItem('svyaz-blocked-contacts') || '[]');
+          setIsBlocked(blocked.includes(nodeId));
+      } catch (e) { console.error(e); }
+  }, [nodeId]);
   
   useEffect(() => {
     let cancelled = false;
@@ -53,14 +61,7 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
   // Format ID like "УЗЛ-..."
   const formattedId = `УЗЛ-${peer.payload.peer_id.substring(0, 8)}`;
 
-  // Block contact logic (mock DB)
-  const [isBlocked, setIsBlocked] = useState(false);
-  useEffect(() => {
-      try {
-          const blocked = JSON.parse(localStorage.getItem('svyaz-blocked-contacts') || '[]');
-          setIsBlocked(blocked.includes(nodeId));
-      } catch {}
-  }, [nodeId]);
+  
 
   const toggleBlock = () => {
       if (!nodeId) return;
@@ -76,7 +77,7 @@ const NodeInfoPanel = ({ nodeId, className = '' }: Props) => {
           }
           localStorage.setItem('svyaz-blocked-contacts', JSON.stringify(newBlocked));
           setIsBlocked(!isBlocked);
-      } catch {}
+      } catch (e) { console.error(e); }
   };
 
   return (

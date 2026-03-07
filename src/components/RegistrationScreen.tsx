@@ -54,7 +54,7 @@ const RegistrationScreen = ({ onRegister }: Props) => {
               if (nodeId) setNodeId(nodeId);
               if (avatar) setAvatar(avatar);
           }
-      } catch {}
+      } catch (e) { console.error(e); }
   }, []);
 
   return (

@@ -54,6 +54,8 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
   const [compactView, setCompactView] = useState(false);
   const [showIdInChat, setShowIdInChat] = useState(false);
   const [networkAnimation, setNetworkAnimation] = useState(true);
+  const [trustOnlyFiles, setTrustOnlyFiles] = useState(false);
+  const [trustOnlyMedia, setTrustOnlyMedia] = useState(false);
 
   const copyId = () => {
     navigator.clipboard.writeText(user.nodeId);
@@ -282,6 +284,16 @@ const SettingsPanel = ({ user, onUpdateUser }: Props) => {
             <SettingToggle label="Сохранять историю локально" checked={saveHistory} onChange={setSaveHistory} />
             <Button variant="destructive" size="sm">Очистить историю</Button>
             <SettingToggle label="Исчезающие сообщения" checked={vanishing} onChange={setVanishing} />
+            <div className="pt-2 border-t border-border space-y-2">
+              <SettingToggle label="Принимать файлы только от доверенных" checked={trustOnlyFiles} onChange={async (v) => {
+                setTrustOnlyFiles(v);
+                try { await (await import('@/api/nodeAgent')).nodeAgentApi.setTrustOnly({ files: v }); } catch (e) { console.error(e); }
+              }} />
+              <SettingToggle label="Принимать звонки только от доверенных" checked={trustOnlyMedia} onChange={async (v) => {
+                setTrustOnlyMedia(v);
+                try { await (await import('@/api/nodeAgent')).nodeAgentApi.setTrustOnly({ media: v }); } catch (e) { console.error(e); }
+              }} />
+            </div>
           </div>
         )}
 

@@ -201,14 +201,21 @@ export const nodeAgentApi = {
     getJson<ChatHistoryResponse>(`/chat/history?peer_id=${encodeURIComponent(peerId)}&limit=${limit}`),
   chatRead: (peerId: string, lastId: string) =>
     postJson<{peer_id: string, last_id: string}, {ok: boolean}>(`/chat/read`, { peer_id: peerId, last_id: lastId }),
+  setTrustOnly: (opts: { files?: boolean; media?: boolean }) =>
+    postJson<typeof opts, {ok: boolean}>("/config/trust_only", { files: !!opts.files, media: !!opts.media }),
   
   // Session management
   getSessions: () => getJson<SessionsResponse>("/sessions"),
   
-  sendFile: async (peerId: string, file: File) => {
+  sendFile: async (peerId: string, file: Blob | File, filename?: string) => {
     const formData = new FormData();
     formData.append("peer_id", peerId);
-    formData.append("file", file);
+    // Support Safari where File constructor may be unavailable
+    if ((file as File).name) {
+      formData.append("file", file as File);
+    } else {
+      formData.append("file", file, filename || "upload.bin");
+    }
     
     // Custom fetch because postJson uses JSON body
     const controller = new AbortController();

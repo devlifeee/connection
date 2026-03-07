@@ -29,7 +29,8 @@ type Manager struct {
 	calls    map[string]*Call
 	streams  map[string]network.Stream // Active signaling streams
 	mu       sync.RWMutex
-	handler  SignalHandler // Callback to API/Frontend
+ 	handler  SignalHandler // Callback to API/Frontend
+	acceptOffer func(peerID string, callType CallType) bool
 }
 
 func NewManager(h host.Host) *Manager {
@@ -42,6 +43,10 @@ func NewManager(h host.Host) *Manager {
 
 func (m *Manager) SetHandler(h SignalHandler) {
 	m.handler = h
+}
+
+func (m *Manager) SetAcceptOfferFilter(fn func(peerID string, callType CallType) bool) {
+	m.acceptOffer = fn
 }
 
 func (m *Manager) Start() {
@@ -57,6 +62,17 @@ func (m *Manager) GetCalls() []*Call {
 		calls = append(calls, &val)
 	}
 	return calls
+}
+
+// GetCall returns a copy of the call by id
+func (m *Manager) GetCall(id string) *Call {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if c, ok := m.calls[id]; ok && c != nil {
+		val := *c
+		return &val
+	}
+	return nil
 }
 
 // InitiateCall starts an outgoing call
@@ -184,15 +200,21 @@ func (m *Manager) handleStream(stream network.Stream) {
 		return
 	}
 
+	peerID := stream.Conn().RemotePeer().String()
+	callType := offer.Type
+	if callType == "" {
+		callType = CallTypeAudio
+	}
+	if m.acceptOffer != nil && !m.acceptOffer(peerID, callType) {
+		_ = stream.Close()
+		return
+	}
+
 	callID := uuid.New().String() // In real world, offer should contain ID or we generate one
 	// But since stream is 1:1 for call, we can generate local ID mapping.
 	// Actually, let's keep it simple.
 
-	peerID := stream.Conn().RemotePeer().String()
-	callType := offer.Type
-	if callType == "" {
-		callType = CallTypeAudio // default to audio for backward compatibility
-	}
+	// peerID and callType computed above
 
 	call := &Call{
 		ID:        callID,

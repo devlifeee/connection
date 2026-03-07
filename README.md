@@ -1,211 +1,81 @@
-# P2P Connection System - СВЯЗЬ
+# Hex.Team — Децентрализованная связь
 
-A decentralized peer-to-peer communication platform with multi-terminal support, built for secure, serverless communication.
+## Быстрый старт (локальная демонстрация)
 
-## 🚀 Features
+1. Запусти два node‑agent:
+   - Узел A: `cd node-agent && ./node-agent -name "Node-1" -data-dir ./data-node1b -http 127.0.0.1:9890`
+   - Узел B: `cd node-agent && ./node-agent -name "Node-2" -data-dir ./data-node2b -http 127.0.0.1:9891`
+2. Запусти два фронта:
+   - Для Узла A: `VITE_NODE_AGENT_URL=http://127.0.0.1:9890 npm run dev -- --port 5183`
+   - Для Узла B: `VITE_NODE_AGENT_URL=http://127.0.0.1:9891 npm run dev -- --port 5184`
+3. Открой в браузере:
+   - http://localhost:5183 — UI Узла A
+   - http://localhost:5184 — UI Узла B
+4. Проверка:
+   - Панель «Узлы» выводит обнаруженные устройства (mDNS).
+   - Начни чат между A и B, отправь сообщение.
+   - В «Файлы» отправь файл, наблюдай прогресс и завершение.
+   - В «Звонки» инициируй аудио‑звонок, смотри метрики.
 
-- **P2P Communication**: Direct peer-to-peer messaging without central servers
-- **Multi-Terminal Support**: Multiple UI instances connecting to the same node
-- **Real-time Events**: WebSocket-based event streaming
-- **Session Management**: Track and manage multiple terminal sessions
-- **File Transfers**: Secure P2P file sharing with resume support
-- **Video Calls**: WebRTC-based audio/video calling
-- **Auto-Discovery**: mDNS-based peer discovery on local networks
-- **End-to-End Encryption**: Secure communication with libp2p
+## Мультихоп (демо через ретранслятор)
 
-## 🏗️ Architecture
+1. Запусти третий node‑agent C с включённым relay (по умолчанию включено в конфиге).  
+2. Размести A и B так, чтобы они не имели прямой связности, но видели C.  
+3. Отправь сообщение A→B — UI покажет «через: N» в пузырьке (маршрут relay).
 
-### Backend (Go)
-- **libp2p**: P2P networking and protocols
-- **WebSocket**: Real-time event streaming
-- **mDNS**: Automatic peer discovery
-- **Session Management**: Multi-terminal support
-- **File Transfer**: Chunked transfer with resume
-- **Media Signaling**: WebRTC call coordination
+## Архитектура (вкратце)
 
-### Frontend (React)
-- **React + TypeScript**: Modern UI framework
-- **WebSocket Client**: Real-time event handling
-- **WebRTC**: Direct media communication
-- **Session Hooks**: Terminal session management
-- **Responsive Design**: Mobile and desktop support
+- Транспорт: libp2p, mDNS для локального обнаружения.
+- Чат: прямой stream + fallback через pubsub‑relay с TTL и дедупликацией.
+- Файлы: собственный протокол Offer/Accept/Chunk/Ack/Complete, SHA‑256, резюм, персист состояния.
+- Звонки: сигналинг поверх libp2p stream, медиаканал через WebRTC (браузер), серверные метрики.
+- Безопасность: шифрование Noise (libp2p), trust‑лист, режим «только доверенные» для файлов/медиа.
 
-## 🚀 Quick Start
+Подробности в [docs/architecture.md](docs/architecture.md).
 
-### Option 1: Multi-Terminal Demo (Recommended)
+## Метрики и логирование
 
-Start 3 node-agents and 3 frontends with one command:
+- REST: `GET /metrics` (чат p50/p95, файлы p50/p95, file chunk RTT p50/p95, счётчики, метрики звонков).
+- События WebSocket: `/session/ws` — события чата, звонков, файлов (для UI).
 
-```bash
-# Start everything
-./scripts/multi-terminal-demo.sh start
+## Надёжность
 
-# View access URLs and instructions
-./scripts/multi-terminal-demo.sh demo
+- Чат: outbox с ретраями и TTL, ACK, дедупликация.
+- Файлы: резюм после обрыва и рестарта, подтверждения чанков, лимит скорости, строгий контроль хэша.
+- Звонки: серверные метрики, автообработка сигналинга, устойчивость UI при потерях (WebRTC).
 
-# Check status
-./scripts/multi-terminal-demo.sh status
+## Приватность и доверие
 
-# Stop everything
-./scripts/multi-terminal-demo.sh stop
+- Режим «только доверенные»:
+  - `POST /config/trust_only {"files":true|false,"media":true|false}`
+  - В UI: Настройки → Приватность — переключатели для файлов и звонков.
+
+## Соответствие критериям ТЗ (основное)
+
+- Обнаружение узлов — mDNS, список в UI.
+- P2P‑сессия — прямые потоки libp2p.
+- Чат — двусторонний + мультихоп через relay, TTL/дедуп.
+- Файлы — протокол с чанками/ACK/хэш, резюм, контроль нагрузки.
+- Звонки — WebRTC медиа, сигналинг поверх p2p, метрики.
+- Док‑во устойчивости — ретраи/outbox, резюм, trust‑режим, метрики.
+
+## Скрипт демо
+
+Для запуска всего комплекта можно использовать:
+
+```
+npm run multi
 ```
 
-### Option 2: Single Instance
+Скрипт поднимает два узла и два фронта с правильными адресами.
 
-**Start Backend:**
-```bash
-cd node-agent
-go run . -name "MyNode" -http "127.0.0.1:9876"
-```
+## Сборка и проверка
 
-**Start Frontend:**
-```bash
-npm install
-npm run dev
-```
+- Backend (Go): `cd node-agent && go build -o node-agent .`
+- Frontend: `npm run build`
+- Линт: `npm run lint`
 
-Access at: http://localhost:5173
+## Лицензия
 
-## 🖥️ Multi-Terminal Usage
+MIT
 
-The system supports multiple terminal sessions connecting to the same node-agent:
-
-### Access URLs
-- **Terminal 1**: http://127.0.0.1:5173 → Backend: http://127.0.0.1:9876
-- **Terminal 2**: http://127.0.0.1:5174 → Backend: http://127.0.0.1:9877  
-- **Terminal 3**: http://127.0.0.1:5175 → Backend: http://127.0.0.1:9878
-
-### Session Features
-- **Unique Terminal IDs**: Each UI gets a unique session identifier
-- **Real-time Events**: WebSocket-based event streaming
-- **Session Monitoring**: View all active sessions in Settings → Sessions
-- **Event Broadcasting**: Events sent to specific sessions or all sessions
-- **Automatic Cleanup**: Inactive sessions removed after 5 minutes
-
-### Testing Multi-Terminal
-1. Open multiple browser tabs with different URLs
-2. Register different users in each tab
-3. Check peer discovery in Nodes panel
-4. Test chat, file transfer, and video calls between terminals
-5. Monitor real-time events in Settings → Sessions
-
-## 📡 API Endpoints
-
-### Node Management
-- `GET /health` - Node health and uptime
-- `GET /identity` - Peer ID and addresses
-- `GET /presence` - Self presence information
-- `GET /presence/peers` - All discovered peers
-
-### Session Management
-- `POST /session/create` - Create new terminal session
-- `GET /session/ws` - WebSocket upgrade endpoint
-- `GET /sessions` - List all active sessions
-
-### Communication
-- `POST /chat/send` - Send message to peer
-- `GET /chat/history` - Retrieve message history
-- `POST /files/send` - Upload file to peer
-- `GET /files/transfers` - List file transfers
-
-### Media (WebRTC)
-- `POST /media/call` - Initiate call
-- `POST /media/answer` - Accept call
-- `POST /media/candidate` - Send ICE candidate
-- `POST /media/hangup` - End call
-- `GET /media/events` - Poll for events (legacy)
-
-## 🔧 Configuration
-
-### Environment Variables
-- `VITE_NODE_AGENT_URL`: Backend URL (default: http://127.0.0.1:9876)
-
-### Node Agent Options
-```bash
-go run . [options]
-  -name string        Display name for the node
-  -p2p-port int       P2P listening port (default: 9001)
-  -http string        HTTP API address (default: 127.0.0.1:9876)
-  -data-dir string    Data directory path (default: ./data)
-  -db string          PostgreSQL connection string (optional)
-```
-
-## 🛠️ Development
-
-### Prerequisites
-- **Go 1.21+**: For node-agent backend
-- **Node.js 18+**: For React frontend
-- **npm/yarn**: Package manager
-
-### Backend Development
-```bash
-cd node-agent
-go mod tidy
-go run . -name "DevNode"
-```
-
-### Frontend Development
-```bash
-npm install
-npm run dev
-```
-
-### Building
-```bash
-# Backend
-cd node-agent
-go build -o node-agent .
-
-# Frontend
-npm run build
-```
-
-## 📚 Documentation
-
-- **[Multi-Terminal Guide](docs/MULTI_TERMINAL_GUIDE.md)**: Detailed multi-terminal setup and usage
-- **[P2P LAN Plan](docs/P2P_LAN_PLAN.md)**: Technical architecture overview
-- **[Status](docs/STATUS.md)**: Current implementation status
-- **[Work Plan](docs/WORKPLAN.md)**: Development roadmap
-
-## 🔍 Monitoring & Debugging
-
-### Session Diagnostics
-- **Settings → Sessions**: View session information and events
-- **Browser Console**: WebSocket connection status
-- **API Health**: Check `/health` endpoints
-
-### Debug Commands
-```bash
-# Check all processes
-./scripts/multi-terminal-demo.sh status
-
-# Clean up everything
-./scripts/multi-terminal-demo.sh clean
-
-# Test API connectivity
-curl http://127.0.0.1:9876/sessions
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test with multi-terminal setup
-5. Submit a pull request
-
-## 📄 License
-
-This project is built for educational purposes as part of NuclearHack МИФИ.
-
-## 🎯 Project Goals
-
-- **Serverless Communication**: No central servers or accounts required
-- **Privacy First**: End-to-end encryption and local data storage
-- **Multi-Terminal**: Support multiple UI instances per node
-- **Real-time**: WebSocket-based event streaming
-- **P2P Native**: Direct peer-to-peer connections
-
----
-
-*"Без серверов. Без аккаунтов. Без компромиссов."*

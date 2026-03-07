@@ -16,6 +16,8 @@ import (
 	libp2pproto "github.com/libp2p/go-libp2p/core/protocol"
 	"net/http"
 	"errors"
+	"strings"
+	"io"
 
 	"github.com/nhex-team/connection/node-agent/internal/api"
 	"github.com/nhex-team/connection/node-agent/internal/discovery"
@@ -25,6 +27,9 @@ import (
 	"github.com/nhex-team/connection/node-agent/internal/protocol"
 	"github.com/nhex-team/connection/node-agent/internal/filetransfer"
 	"github.com/nhex-team/connection/node-agent/internal/chatrelay"
+	"github.com/nhex-team/connection/node-agent/internal/db"
+	"crypto/sha256"
+	"encoding/hex"
 )
 
 type Runtime struct {
@@ -95,15 +100,42 @@ func Start(ctx context.Context, cfg Config) (*Runtime, error) {
 		RateLimitBps: 2 << 20, // ~2MB/s default
 	})
 	fileMgr.Start()
-	chat := &protocol.ChatHandler{}
-	chat.VerifyFn = func(sender string, e protocol.Envelope) bool {
-		pub := h.Peerstore().PubKey(peer.ID(sender))
-		if pub == nil {
-			return true // unknown pub, allow for MVP
+	// Optional Postgres store
+	var pg *db.Store
+	if dsn := os.Getenv("NHEX_PG_DSN"); dsn != "" {
+		store, err := db.NewStore(ctx, dsn)
+		if err == nil {
+			pg = store
+			_ = pg.Migrate(ctx, filepath.Join("internal", "db", "migrations"))
+			fileMgr.SetOnComplete(func(t *filetransfer.Transfer) {
+				if t == nil || t.Role != "receiver" {
+					return
+				}
+				mt := strings.ToLower(t.Metadata.MimeType)
+				if !(strings.HasPrefix(mt, "image/") || strings.HasPrefix(mt, "audio/")) {
+					return
+				}
+				f, err := os.Open(t.LocalPath)
+				if err != nil {
+					return
+				}
+				defer f.Close()
+				b, err := io.ReadAll(f)
+				if err != nil {
+					return
+				}
+				sum := sha256.Sum256(b)
+				fileHash := hex.EncodeToString(sum[:])
+				if _, err := pg.Pool().Exec(ctx,
+					"INSERT INTO media_blobs (id, peer_id, transfer_id, role, mime_type, size, bytes, file_hash) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING",
+					t.ID, t.PeerID, t.ID, t.Role, t.Metadata.MimeType, t.TotalSize, b, fileHash,
+				); err != nil {
+					return
+				}
+			})
 		}
-		ok, _ := protocol.Verify(pub, e)
-		return ok
 	}
+	chat := &protocol.ChatHandler{}
 	h.SetStreamHandler(chat.ProtocolID(cfg.ProtocolChat), chat.HandleStream)
 
 	n := discovery.NewNotifee(ctx, 64)
@@ -127,6 +159,21 @@ func Start(ctx context.Context, cfg Config) (*Runtime, error) {
 		return nil, err
 	}
 
+	// Load profile
+	profilePath := filepath.Join(cfg.DataDir, "profile.json")
+	if b, err := os.ReadFile(profilePath); err == nil {
+		type profile struct{ DisplayName string `json:"display_name"` }
+		var pr profile
+		if json.Unmarshal(b, &pr) == nil && pr.DisplayName != "" {
+			pdb.UpdateSelf(presence.Self{
+				DisplayName:  pr.DisplayName,
+				Version:      cfg.Version,
+				Capabilities: cfg.Capabilities,
+			})
+			cfg.DisplayName = pr.DisplayName
+		}
+	}
+
 	srv := api.NewServer(h, cfg.HTTPAddr, api.Info{
 		DisplayName:  cfg.DisplayName,
 		Version:      cfg.Version,
@@ -138,10 +185,34 @@ func Start(ctx context.Context, cfg Config) (*Runtime, error) {
 			"presence":     cfg.ProtocolPresence,
 		},
 	}, pdb, chatStore, mediaMgr, fileMgr)
+	srv.SetProfilePath(profilePath)
+	if pg != nil {
+		srv.SetDB(pg)
+	}
 	srv.SetRelay(relay)
 	srv.SetSigner(protocol.NewSigner(priv))
 	srv.SetOutbox(chatOutbox)
 	mediaMgr.SetHandler(srv)
+	// trust-only filter for incoming files if enabled
+	fileMgr.SetAcceptFilter(func(peerID string, meta filetransfer.Metadata) bool {
+		if srv == nil {
+			return true
+		}
+		if !srv.IsTrusted(peerID) && srv != nil && srv.TrustOnlyFiles() {
+			return false
+		}
+		return true
+	})
+	// trust-only filter for incoming media offers if enabled
+	mediaMgr.SetAcceptOfferFilter(func(peerID string, ctype media.CallType) bool {
+		if srv == nil {
+			return true
+		}
+		if !srv.TrustOnlyMedia() {
+			return true
+		}
+		return srv.IsTrusted(peerID)
+	})
 	if relay != nil {
 		relay.OnTo = func(env chatrelay.Envelope) {
 			// drop if blocked by server
@@ -163,6 +234,7 @@ func Start(ctx context.Context, cfg Config) (*Runtime, error) {
 					"type": "chat_message",
 					"env":  e,
 					"via":  "relay",
+					"path": env.Path,
 				})
 			}
 		}

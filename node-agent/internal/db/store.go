@@ -31,6 +31,8 @@ func (s *Store) Close() {
 	s.pool.Close()
 }
 
+func (s *Store) Pool() *pgxpool.Pool { return s.pool }
+
 func (s *Store) Migrate(ctx context.Context, migrationsDir string) error {
 	// Simple migration runner
 	// In production use proper migration tool

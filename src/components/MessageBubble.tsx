@@ -15,6 +15,8 @@ interface MessageBubbleProps {
   isDelivered?: boolean;
   className?: string;
   groupPosition?: 'single' | 'first' | 'middle' | 'last';
+  via?: 'relay' | 'direct';
+  path?: string[];
 }
 
 const MessageBubble = ({ 
@@ -29,7 +31,9 @@ const MessageBubble = ({
   isRead, 
   isDelivered, 
   className,
-  groupPosition = 'single'
+  groupPosition = 'single',
+  via,
+  path
 }: MessageBubbleProps) => {
   const isMedia = mediaType === 'image' || mediaType === 'video';
   const showTail = groupPosition === 'single' || groupPosition === 'last';
@@ -122,6 +126,7 @@ const MessageBubble = ({
           isMedia && !text ? "absolute bottom-2 right-2 bg-black/40 px-1.5 py-0.5 rounded-full text-white" : "top-[6px]",
           isMedia && text && "px-2 pb-1"
         )}>
+          {!!path?.length && <span className="mr-1">{`через: ${path.length}`}</span>}
           <span>{time}</span>
           {isMe && (
             <span className="ml-0.5 inline-flex items-center">

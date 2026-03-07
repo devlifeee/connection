@@ -133,10 +133,10 @@ const Index = () => {
         />;
       case 'files':
         return <FilesPanel />;
-      case 'calls':
+      case 'calls': {
         // Check for call intent on mount
         const intent = localStorage.getItem('svyaz-call-intent');
-        let initialPeerId = null;
+        let initialPeerId: string | null = null;
         let autoVideo = false;
         if (intent) {
             try {
@@ -144,9 +144,10 @@ const Index = () => {
                 initialPeerId = data.peerId;
                 autoVideo = data.video;
                 localStorage.removeItem('svyaz-call-intent');
-            } catch {}
+            } catch (e) { console.error(e); }
         }
         return <CallsPanel initialPeerId={initialPeerId} autoStart={!!initialPeerId} autoVideo={autoVideo} />;
+      }
       case 'nodes':
         return <NodesPanel onChatWith={handleChatWith} userAvatar={user!.avatar} />;
       case 'settings':
