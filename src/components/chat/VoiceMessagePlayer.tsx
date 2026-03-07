@@ -37,7 +37,7 @@ const VoiceMessagePlayer = ({ audioUrl, duration, isMe }: Props) => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, []);
+  }, [audioUrl]);
 
   const togglePlay = () => {
     const audio = audioRef.current;

@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { nodeAgentApi, type Call, type MediaEvent } from '@/api/nodeAgent';
+import { useCallback, useRef as useRef2 } from 'react';
+
+type CallState = 'idle' | 'incoming' | 'outgoing' | 'connected';
 
 interface Props {
   initialPeerId?: string | null;
@@ -45,24 +48,64 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
   });
   const [historyLimit, setHistoryLimit] = useState(5);
 
-  // Auto start call if props provided
-  useEffect(() => {
-    if (autoStart && initialPeerId && callState === 'idle') {
-        // Allow state to settle then start call
-        const timer = setTimeout(() => {
-            startCall(!!autoVideo);
-        }, 500);
-        return () => clearTimeout(timer);
-    }
-  }, [autoStart, initialPeerId]);
+  // Auto start call flag
+  const autoStartedRef = useRef2(false);
+  const startCallRef = useRef2<(v: boolean) => void>(() => {});
 
-  const saveHistory = (items: typeof history) => {
+  const saveHistory = useCallback((items: typeof history) => {
     setHistory(items);
-    try { localStorage.setItem('svyaz-call-history', JSON.stringify(items.slice(-50))); } catch {}
-  };
+    try { localStorage.setItem('svyaz-call-history', JSON.stringify(items.slice(-50))); } catch (e) { console.error(e); }
+  }, []);
+
+  const endCall = useCallback(() => {
+    console.log('Ending call:', currentCall?.id);
+    if (currentCall) {
+        nodeAgentApi.hangupCall(currentCall.id).catch((e) => {
+            console.error('Failed to hangup call:', e);
+        });
+    }
+    if (peerConnection.current) {
+        peerConnection.current.close();
+        peerConnection.current = null;
+    }
+    if (localStream.current) {
+        localStream.current.getTracks().forEach(t => t.stop());
+        localStream.current = null;
+    }
+    if (timerInterval.current) {
+        clearInterval(timerInterval.current);
+        timerInterval.current = null;
+    }
+    const endAt = Date.now();
+    if (callStartAt.current) {
+      const dur = Math.max(0, Math.floor((endAt - callStartAt.current) / 1000));
+      if (history.length) {
+        const last = history[history.length - 1];
+        const updated = [...history.slice(0, -1), { ...last, dur }];
+        saveHistory(updated);
+      }
+    }
+    setCurrentCall(null);
+    setCallState('idle');
+    setCallTimer('00:00');
+    setVideoEnabled(false);
+    setMicEnabled(true);
+    setMetrics(null);
+  }, [currentCall, history, saveHistory]);
+
+  const startTimer = useCallback(() => {
+      let s = 0;
+      if (timerInterval.current) clearInterval(timerInterval.current);
+      timerInterval.current = setInterval(() => {
+          s++;
+          const m = String(Math.floor(s / 60)).padStart(2, '0');
+          const sec = String(s % 60).padStart(2, '0');
+          setCallTimer(`${m}:${sec}`);
+      }, 1000);
+  }, []);
 
   // Initialize WebRTC
-  const initPeerConnection = () => {
+  const initPeerConnection = useCallback(() => {
     console.log('Initializing peer connection');
     const pc = new RTCPeerConnection({
       iceServers: [
@@ -111,10 +154,10 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
 
     peerConnection.current = pc;
     return pc;
-  };
+  }, [currentCall, endCall, startTimer]);
 
   // Debug function to check video state
-  const debugVideoState = () => {
+  const debugVideoState = useCallback(() => {
     console.log('=== Video Debug Info ===');
     console.log('videoEnabled:', videoEnabled);
     console.log('callState:', callState);
@@ -141,7 +184,7 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
         paused: localVideoRef.current.paused
       });
     }
-  };
+  }, [videoEnabled, callState]);
 
   // Add debug button in development
   useEffect(() => {
@@ -149,9 +192,9 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
       (window as any).debugVideo = debugVideoState;
       console.log('Debug function available: window.debugVideo()');
     }
-  }, [videoEnabled, callState]);
+  }, [videoEnabled, callState, debugVideoState]);
 
-  const getLocalStream = async (video: boolean) => {
+  const getLocalStream = useCallback(async (video: boolean) => {
     try {
       const constraints = {
         audio: {
@@ -187,113 +230,11 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
       toast.error('Media access denied');
       return null;
     }
-  };
+  }, []);
 
-  // Handle WebSocket events instead of polling
-  useEffect(() => {
-    // Get only the latest events to avoid processing duplicates
-    const latestEvents = events.slice(-10); // Last 10 events
-    
-    for (const event of latestEvents) {
-      // Create unique event ID
-      const eventId = `${event.type}-${event.timestamp}-${JSON.stringify(event).substring(0, 50)}`;
-      
-      // Skip if already processed
-      if (processedEvents.current.has(eventId)) {
-        continue;
-      }
-      
-      if (event.type === 'incoming_call' || 
-          event.type === 'call_accepted' || 
-          event.type === 'ice_candidate' || 
-          event.type === 'hangup') {
-        console.log('Processing new media event:', event.type, eventId);
-        processedEvents.current.add(eventId);
-        handleEvent(event as unknown as MediaEvent);
-        
-        // Clean up old processed events (keep last 50)
-        if (processedEvents.current.size > 50) {
-          const arr = Array.from(processedEvents.current);
-          processedEvents.current = new Set(arr.slice(-50));
-        }
-      }
-    }
-  }, [events]); // Only depend on events
+  
 
-  const handleEvent = async (event: MediaEvent) => {
-    console.log('Handling event:', event.type, event);
-    const pc = peerConnection.current;
-
-    switch (event.type) {
-        case 'incoming_call':
-            if (callState === 'idle') {
-                console.log('Setting incoming call:', event.call);
-                setCurrentCall(event.call);
-                setCallState('incoming');
-                // Store SDP for later use
-                (event.call as any).sdp = event.sdp;
-            } else {
-                console.log('Rejecting call - not idle, current state:', callState);
-                // Busy - reject call
-                if (event.call?.id) {
-                    nodeAgentApi.hangupCall(event.call.id);
-                }
-            }
-            break;
-            
-        case 'call_accepted':
-            console.log('Call accepted:', event);
-            if (currentCall && currentCall.id === event.call.id && pc) {
-                try {
-                    console.log('Setting remote description (answer)');
-                    await pc.setRemoteDescription(new RTCSessionDescription({
-                        type: 'answer',
-                        sdp: event.sdp
-                    }));
-                    console.log('Remote description set successfully');
-                    setCallState('connected');
-                    startTimer();
-                } catch (e) {
-                    console.error('Error setting remote description:', e);
-                    toast.error("Failed to establish connection");
-                }
-            } else {
-                console.log('Ignoring call_accepted - no matching call or PC');
-            }
-            break;
-
-        case 'ice_candidate':
-            console.log('ICE candidate received:', event);
-            if (currentCall && currentCall.id === event.call_id && pc) {
-                try {
-                    // Only add ICE candidate if remote description is set
-                    if (pc.remoteDescription) {
-                        await pc.addIceCandidate(event.candidate);
-                        console.log('ICE candidate added successfully');
-                    } else {
-                        console.warn("Remote description not set, skipping ICE candidate");
-                    }
-                } catch (e) {
-                    console.error("Error adding ice candidate:", e);
-                }
-            } else {
-                console.log('Ignoring ICE candidate - no matching call or PC');
-            }
-            break;
-
-        case 'hangup':
-            console.log('Hangup received for call:', event.call_id);
-            if (currentCall && currentCall.id === event.call_id) {
-                endCall();
-                toast.info("Call ended by peer");
-            } else {
-                console.log('Ignoring hangup - no matching call');
-            }
-            break;
-    }
-  };
-
-  const startCall = async (video: boolean) => {
+  const startCall = useCallback(async (video: boolean) => {
     // If no targetPeerId is set, try to use initialPeerId or just return
     const peerToCall = targetPeerId || initialPeerId;
     console.log('Starting call to:', peerToCall, 'video:', video);
@@ -327,9 +268,9 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
         toast.error("Failed to start call");
         endCall();
     }
-  };
+  }, [targetPeerId, initialPeerId, getLocalStream, initPeerConnection, endCall, history, saveHistory]);
 
-  const acceptCall = async (video: boolean) => {
+  const acceptCall = useCallback(async (video: boolean) => {
     console.log('Accepting call:', currentCall?.id, 'video:', video);
     if (!currentCall) return;
     const sdp = (currentCall as any).sdp; // Retrieved from event
@@ -364,58 +305,67 @@ const CallsPanel = ({ initialPeerId, autoStart, autoVideo }: Props) => {
         toast.error("Failed to accept call");
         endCall();
     }
-  };
+  }, [currentCall, getLocalStream, initPeerConnection, startTimer, endCall, history, saveHistory]);
 
-  const endCall = () => {
-    console.log('Ending call:', currentCall?.id);
-    if (currentCall) {
-        nodeAgentApi.hangupCall(currentCall.id).catch((e) => {
-            console.error('Failed to hangup call:', e);
-        });
-    }
-    
-    if (peerConnection.current) {
-        peerConnection.current.close();
-        peerConnection.current = null;
-    }
-    
-    if (localStream.current) {
-        localStream.current.getTracks().forEach(t => t.stop());
-        localStream.current = null;
-    }
+  useEffect(() => {
+    startCallRef.current = startCall;
+  }, [startCall, startCallRef]);
 
-    if (timerInterval.current) {
-        clearInterval(timerInterval.current);
-        timerInterval.current = null;
+  // Auto start call if props provided (run once)
+  useEffect(() => {
+    if (!autoStartedRef.current && autoStart && initialPeerId && callState === 'idle') {
+      autoStartedRef.current = true;
+      const timer = setTimeout(() => {
+        startCallRef.current(!!autoVideo);
+      }, 500);
+      return () => clearTimeout(timer);
     }
-    
-    const endAt = Date.now();
-    if (callStartAt.current) {
-      const dur = Math.max(0, Math.floor((endAt - callStartAt.current) / 1000));
-      if (history.length) {
-        const last = history[history.length - 1];
-        const updated = [...history.slice(0, -1), { ...last, dur }];
-        saveHistory(updated);
-      }
-    }
-    setCurrentCall(null);
-    setCallState('idle');
-    setCallTimer('00:00');
-    setVideoEnabled(false);
-    setMicEnabled(true);
-    setMetrics(null);
-  };
+  }, [autoStartedRef, autoStart, initialPeerId, autoVideo, callState, startCallRef]);
 
-  const startTimer = () => {
-      let s = 0;
-      if (timerInterval.current) clearInterval(timerInterval.current);
-      timerInterval.current = setInterval(() => {
-          s++;
-          const m = String(Math.floor(s / 60)).padStart(2, '0');
-          const sec = String(s % 60).padStart(2, '0');
-          setCallTimer(`${m}:${sec}`);
-      }, 1000);
-  };
+  const handleEvent = useCallback((event: MediaEvent) => {
+    console.log('Handling event:', event.type, event);
+    const pc = peerConnection.current;
+    switch (event.type) {
+      case 'incoming_call':
+        if (callState === 'idle') {
+          setCurrentCall(event.call);
+          setCallState('incoming');
+          (event.call as any).sdp = (event as any).sdp;
+        } else {
+          if (event.call?.id) {
+            nodeAgentApi.hangupCall(event.call.id);
+          }
+        }
+        break;
+      case 'call_accepted':
+        if (currentCall && currentCall.id === event.call.id && pc) {
+          pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: (event as any).sdp }))
+            .then(() => {
+              setCallState('connected');
+              startTimer();
+            })
+            .catch(() => {
+              toast.error("Failed to establish connection");
+            });
+        }
+        break;
+      case 'ice_candidate':
+        if (currentCall && currentCall.id === event.call_id && pc) {
+          if (pc.remoteDescription) {
+            pc.addIceCandidate((event as any).candidate).catch(() => {});
+          }
+        }
+        break;
+      case 'hangup':
+        if (currentCall && currentCall.id === event.call_id) {
+          endCall();
+          toast.info("Call ended by peer");
+        }
+        break;
+    }
+  }, [callState, currentCall, endCall, startTimer]);
+
+  
   
   // Collect WebRTC stats while connected
   useEffect(() => {

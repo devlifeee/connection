@@ -7,7 +7,7 @@ import GeometricAvatar from './GeometricAvatar';
 import MessageBubble from './MessageBubble';
 import { useTheme } from '@/hooks/useTheme';
 import type { Message } from '@/data/mockData';
-import { useChatHistory, useNodeAgentPresencePeers, useSendChatMessage, useNodeAgentIdentity } from "@/hooks/useNodeAgent";
+import { useChatHistory, useNodeAgentPresencePeers, useSendChatMessage, useNodeAgentIdentity, useFileTransfers } from "@/hooks/useNodeAgent";
 import { useSession } from '@/hooks/useSession';
 import { toast } from 'sonner';
 import { nodeAgentApi } from '@/api/nodeAgent';
@@ -39,6 +39,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel, onStartCall 
   const selectedPeerId = dialogNodeId || presencePeers.data?.peers?.[0]?.payload.peer_id;
   const chatHistory = useChatHistory(selectedPeerId);
   const { events } = useSession();
+  const transfers = useFileTransfers();
   const identity = useNodeAgentIdentity();
   const myPeerId = identity.data?.peer_id;
   const [lastReadId, setLastReadId] = useState<string>('');
@@ -95,9 +96,10 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel, onStartCall 
 
     // Send via API (using file upload endpoint for voice)
     try {
-        // Create file from blob
-        const file = new File([blob], "voice.webm", { type: "audio/webm" });
-        await nodeAgentApi.sendFile(selectedPeerId, file);
+        // Determine extension from blob.type for better playback compatibility
+        const type = (blob as any).type || 'audio/webm';
+        const ext = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : type.includes('wav') ? 'wav' : 'webm';
+        await nodeAgentApi.sendFile(selectedPeerId, blob, `voice.${ext}`);
         // Note: Actual chat protocol needs update to link file to chat message
         // sending a text message with metadata for now
         sendChat.mutate({ 
@@ -117,6 +119,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel, onStartCall 
     const nowTime = new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
     
     // Optimistic Message
+    const msgType: 'file' | 'audio' | 'text' = previewMedia ? 'file' : 'text';
     const msg: Message = {
       id: Date.now().toString(),
       from: 'me',
@@ -128,7 +131,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel, onStartCall 
       time: nowTime,
       timestamp: Date.now(),
       delivered: true,
-      type: previewMedia ? previewMedia.type : 'text',
+      type: msgType,
     };
     
     setMessages(prev => [...prev, msg]);
@@ -186,7 +189,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel, onStartCall 
         setLastReadId(ev.last_id as string);
       }
     }
-  }, [events]);
+  }, [events, selectedPeerId]);
 
   // Mark peer messages as read when viewing chat
   useEffect(() => {
@@ -196,7 +199,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel, onStartCall 
     if (lastIncoming && lastIncoming.id) {
       nodeAgentApi.chatRead(selectedPeerId, lastIncoming.id).catch(()=>{});
     }
-  }, [selectedPeerId, chatHistory.data?.messages?.length]);
+  }, [selectedPeerId, chatHistory.data?.messages]);
 
   const selectedPeer = presencePeers.data?.peers?.find(p => p.payload.peer_id === selectedPeerId) ?? null;
   if (!selectedPeer) {
@@ -328,6 +331,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel, onStartCall 
           const localMessages = messages.map(msg => ({
             id: msg.id,
             text: msg.text,
+            type: msg.type,
             mediaType: msg.mediaType,
             fileName: msg.fileName,
             duration: msg.duration,
@@ -340,8 +344,35 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel, onStartCall 
             sender: 'me'
           }));
 
-          // 3. Combine and sort
-          const sortedHistory = [...historyMessages].sort((a, b) => a.timestamp - b.timestamp);
+          // Map file transfers to messages
+          const env = import.meta.env as any;
+          const baseUrl = (env?.VITE_NODE_AGENT_URL && String(env.VITE_NODE_AGENT_URL).trim()) || "http://127.0.0.1:9876";
+          const fileMsgs = (transfers.data?.transfers || [])
+            .filter((t:any) => t.peer_id === selectedPeerId && t.status === 'completed')
+            .map((t:any) => {
+              const mt = String(t.metadata?.mime_type || '');
+              const isImg = mt.startsWith('image/');
+              const isAudio = mt.startsWith('audio/');
+              const isVideo = mt.startsWith('video/');
+              const mediaType = isImg ? 'image' : isAudio ? 'audio' : isVideo ? 'video' : 'file';
+              return {
+                id: t.id,
+                text: '',
+                type: mediaType === 'audio' ? 'audio' : 'file',
+                mediaType,
+                fileName: t.metadata?.name || t.id,
+                duration: undefined,
+                mediaUrl: `${baseUrl}/files/download?id=${encodeURIComponent(t.id)}`,
+                time: new Date(t.start_time || Date.now()).toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'}),
+                timestamp: Date.parse(t.start_time || '') || Date.now(),
+                isMe: t.role === 'sender',
+                isRead: t.status === 'completed',
+                isDelivered: t.status === 'completed',
+                sender: t.role === 'sender' ? 'me' : selectedPeerId,
+              };
+            });
+
+          const sortedHistory = [...historyMessages, ...fileMsgs].sort((a, b) => a.timestamp - b.timestamp);
           
           // Filter local messages that are already in history (by content and approximate timestamp)
           const uniqueLocalMessages = localMessages.filter(localMsg => {
@@ -373,6 +404,12 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel, onStartCall 
 
           const allMessages = [...sortedHistory, ...uniqueLocalMessages].sort((a, b) => a.timestamp - b.timestamp);
 
+          const relayMap: Record<string, string[] | undefined> = {};
+          (events || []).forEach((e: any) => {
+            if (e && e.type === 'chat_message' && e.env && e.env.id) {
+              relayMap[e.env.id] = Array.isArray(e.path) ? e.path : undefined;
+            }
+          });
           return allMessages.map((msg, index) => {
              const groupPosition = getGroupPosition(index, allMessages, msg.sender);
              const isGroupStart = groupPosition === 'first' || groupPosition === 'single';
@@ -400,6 +437,7 @@ const ChatPanel = ({ dialogNodeId, onSelectNode, onToggleInfoPanel, onStartCall 
                      isRead={msg.isRead} 
                      isDelivered={msg.isDelivered} 
                      groupPosition={groupPosition}
+                     path={relayMap[msg.id]}
                    />
                 </div>
               </div>

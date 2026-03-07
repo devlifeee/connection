@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Trash2, Send, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -20,12 +20,9 @@ const VoiceRecorder = ({ onSend, onCancel }: Props) => {
   const chunks = useRef<BlobPart[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    startRecording();
-    return () => stopRecordingCleanup();
-  }, []);
+  
 
-  const startRecording = async () => {
+  const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
@@ -52,8 +49,20 @@ const VoiceRecorder = ({ onSend, onCancel }: Props) => {
       };
       updateLevel();
 
+      // Choose best supported mime type for recorder
+      const candidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4;codecs=mp4a.40.2',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+        'audio/ogg',
+        'audio/wav'
+      ];
+      const mimeType = candidates.find(t => (window as any).MediaRecorder?.isTypeSupported?.(t)) || '';
+      
       // Setup Recorder
-      mediaRecorder.current = new MediaRecorder(stream);
+      mediaRecorder.current = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       chunks.current = [];
 
       mediaRecorder.current.ondataavailable = (e) => {
@@ -74,9 +83,9 @@ const VoiceRecorder = ({ onSend, onCancel }: Props) => {
       console.error("Failed to start recording", err);
       onCancel();
     }
-  };
+  }, [onCancel]);
 
-  const stopRecordingCleanup = () => {
+  const stopRecordingCleanup = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (animationFrame.current) cancelAnimationFrame(animationFrame.current);
     
@@ -88,18 +97,25 @@ const VoiceRecorder = ({ onSend, onCancel }: Props) => {
     if (audioContext.current) {
       audioContext.current.close();
     }
-  };
+  }, []);
 
   const handleSend = () => {
     if (!mediaRecorder.current) return;
     
-    mediaRecorder.current.onstop = () => {
-      const blob = new Blob(chunks.current, { type: 'audio/webm' });
+      mediaRecorder.current.onstop = () => {
+      // Use recorder mimeType if available, else fallback to chunk type or webm
+      const recType = (mediaRecorder.current as any)?.mimeType || (chunks.current[0] as any)?.type || 'audio/webm';
+      const blob = new Blob(chunks.current, { type: recType });
       onSend(blob, formatTime(duration));
     };
     
     stopRecordingCleanup();
   };
+
+  useEffect(() => {
+    startRecording();
+    return () => stopRecordingCleanup();
+  }, [startRecording, stopRecordingCleanup]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);

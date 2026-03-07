@@ -27,6 +27,7 @@ import (
 	"strings"
 	"github.com/nhex-team/connection/node-agent/internal/chatrelay"
 	"path/filepath"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Server struct {
@@ -40,6 +41,7 @@ type Server struct {
 	sessions *Sessions
 	media    *media.Manager
 	files    *filetransfer.Manager
+	dbstore  interface{ Pool() *pgxpool.Pool }
 	// metrics
 	chatSent int64
 	chatRecv int64
@@ -49,19 +51,43 @@ type Server struct {
 	outboxRetries int64
 	outboxSuccess int64
 	chatLat *metrics.Reservoir
+	fileChunkLat *metrics.Reservoir
+	fileCompleted int64
+	fileFailed int64
+	// calls
+	callStarted int64
+	callConnected int64
+	callEnded int64
+	callDur *metrics.Reservoir
 	chatDefaultBurst int
 	chatDefaultRate  float64
+	chatTTLDefault int
+	chatMaskRules []maskRule
 	outboxMaxRetries int
 	outboxBaseBackoffMs int
-	blocked map[string]struct{}
+	trust map[string]string // peer_id -> trusted|unknown|blocked
+	mediaAutoAccept bool
+	profilePath string
+	trustOnlyFiles bool
+	trustOnlyMedia bool
 	relay    *chatrelay.Relay
 	signer   *protocol.Signer
 	limits   map[string]*tokenBucket
 	outbox   *protocol.Outbox
 }
 
+type maskRule struct {
+	Pattern string
+	Burst   int
+	Rate    float64
+}
+
 // Implement media.SignalHandler
 func (s *Server) OnIncomingCall(call *media.Call, sdp string) {
+	s.callStarted++
+	if s.mediaAutoAccept {
+		_ = s.media.AcceptCall(call.ID, "auto-answer")
+	}
 	if s.sessions != nil {
 		s.sessions.Broadcast(map[string]any{
 			"type": "incoming_call",
@@ -72,6 +98,7 @@ func (s *Server) OnIncomingCall(call *media.Call, sdp string) {
 }
 
 func (s *Server) OnCallAccepted(call *media.Call, sdp string) {
+	s.callConnected++
 	if s.sessions != nil {
 		s.sessions.Broadcast(map[string]any{
 			"type": "call_accepted",
@@ -92,6 +119,15 @@ func (s *Server) OnICECandidate(callID string, candidate media.ICECandidatePaylo
 }
 
 func (s *Server) OnHangup(callID string) {
+	s.callEnded++
+	if s.media != nil && s.callDur != nil {
+		if c := s.media.GetCall(callID); c != nil && c.StartTime > 0 {
+			d := time.Now().Unix() - c.StartTime
+			if d >= 0 && d < 24*3600 {
+				s.callDur.Add(d * 1000)
+			}
+		}
+	}
 	if s.sessions != nil {
 		s.sessions.Broadcast(map[string]any{
 			"type":    "hangup",
@@ -119,12 +155,16 @@ func NewServer(h host.Host, addr string, info Info, presenceStore *presence.Stor
 		media:    mediaMgr,
 		files:    filesMgr,
 		chatLat:  metrics.NewReservoir(256),
+		callDur:  metrics.NewReservoir(256),
+		fileChunkLat: metrics.NewReservoir(256),
 		chatDefaultBurst: 5,
 		chatDefaultRate:  1,
+		chatTTLDefault: 8,
 		outboxMaxRetries: 5,
 		outboxBaseBackoffMs: 800,
-		blocked: make(map[string]struct{}),
+		trust: make(map[string]string),
 	}
+	// Trust-only is opt-in via /config/trust_only to keep tests permissive by default
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/identity", s.handleIdentity)
@@ -132,16 +172,23 @@ func NewServer(h host.Host, addr string, info Info, presenceStore *presence.Stor
 	mux.HandleFunc("/connect", s.handleConnect)
 	mux.HandleFunc("/peers", s.handlePeers)
 	mux.HandleFunc("/presence", s.handlePresence)
+	mux.HandleFunc("/presence/peers", s.handlePresencePeers)
 	mux.HandleFunc("/presence/update", s.handlePresenceUpdate)
 	mux.HandleFunc("/protocols", s.handleProtocols)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.HandleFunc("/security", s.handleSecurity)
-	mux.HandleFunc("/security/block_add", s.handleSecurityBlockAdd)
-	mux.HandleFunc("/security/block_remove", s.handleSecurityBlockRemove)
-	mux.HandleFunc("/security/block_list", s.handleSecurityBlockList)
+	mux.HandleFunc("/security/block_add", s.handleSecurityBlockAdd)   // legacy
+	mux.HandleFunc("/security/block_remove", s.handleSecurityBlockRemove) // legacy
+	mux.HandleFunc("/security/block_list", s.handleSecurityBlockList) // legacy
+	mux.HandleFunc("/security/trust_set", s.handleSecurityTrustSet)
+	mux.HandleFunc("/security/trust_list", s.handleSecurityTrustList)
+	mux.HandleFunc("/config/chat_ttl", s.handleConfigChatTTL)
+	mux.HandleFunc("/config/chat_limit_masks", s.handleConfigChatLimitMasks)
+	mux.HandleFunc("/config/media_auto_accept", s.handleConfigMediaAutoAccept)
 	mux.HandleFunc("/config/chat_limit_peer", s.handleConfigChatLimitPeer)
 	mux.HandleFunc("/config/chat_limit_default", s.handleConfigChatLimitDefault)
 	mux.HandleFunc("/config/outbox", s.handleConfigOutbox)
+	mux.HandleFunc("/config/trust_only", s.handleConfigTrustOnly)
 	mux.HandleFunc("/chat/send", s.handleChatSend)
 	mux.HandleFunc("/chat/history", s.handleChatHistory)
 	mux.HandleFunc("/chat/read", s.handleChatRead)
@@ -174,6 +221,8 @@ func NewServer(h host.Host, addr string, info Info, presenceStore *presence.Stor
 	return s
 }
 
+func (s *Server) SetProfilePath(p string) { s.profilePath = p }
+
 func (s *Server) SetRelay(r *chatrelay.Relay) {
 	s.relay = r
 }
@@ -185,6 +234,13 @@ func (s *Server) SetSigner(sig *protocol.Signer) {
 func (s *Server) SetOutbox(o *protocol.Outbox) {
 	s.outbox = o
 }
+func (s *Server) SetDB(ds interface{ Pool() *pgxpool.Pool }) { s.dbstore = ds }
+func (s *Server) IsTrusted(peerID string) bool {
+	lvl, ok := s.trust[peerID]
+	return ok && lvl == "trusted"
+}
+func (s *Server) TrustOnlyFiles() bool { return s.trustOnlyFiles }
+func (s *Server) TrustOnlyMedia() bool { return s.trustOnlyMedia }
 
 func (s *Server) IncChatRecv() {
 	s.chatRecv++
@@ -197,6 +253,9 @@ func (s *Server) IncOutboxRetry() { s.outboxRetries++ }
 func (s *Server) IncOutboxSuccess() { s.outboxSuccess++ }
 func (s *Server) OutboxBackoffBaseMs() int { if s.outboxBaseBackoffMs > 0 { return s.outboxBaseBackoffMs }; return 800 }
 func (s *Server) OutboxMaxRetries() int { if s.outboxMaxRetries > 0 { return s.outboxMaxRetries }; return 5 }
+func (s *Server) AddFileChunkRTT(ms int64) { if s.fileChunkLat != nil { s.fileChunkLat.Add(ms) } }
+func (s *Server) IncFileCompleted() { s.fileCompleted++ }
+func (s *Server) IncFileFailed() { s.fileFailed++ }
 // simple token bucket for chat rate-limiting
 type tokenBucket struct {
 	capacity int
@@ -234,11 +293,35 @@ func (s *Server) getBucket(peerID string) *tokenBucket {
 	if b, ok := s.limits[peerID]; ok {
 		return b
 	}
-	cap := s.chatDefaultBurst
+	// apply mask rules first-match
+	cap := 0
+	rate := 0.0
+	for _, r := range s.chatMaskRules {
+		if r.Pattern == "" {
+			continue
+		}
+		match := false
+		if strings.HasSuffix(r.Pattern, "*") {
+			prefix := strings.TrimSuffix(r.Pattern, "*")
+			match = strings.HasPrefix(peerID, prefix)
+		} else {
+			match = peerID == r.Pattern
+		}
+		if match {
+			cap = r.Burst
+			rate = r.Rate
+			break
+		}
+	}
+	if cap <= 0 {
+		cap = s.chatDefaultBurst
+	}
 	if cap <= 0 {
 		cap = 5
 	}
-	rate := s.chatDefaultRate
+	if rate <= 0 {
+		rate = s.chatDefaultRate
+	}
 	if rate <= 0 {
 		rate = 1
 	}
@@ -271,6 +354,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 // media events endpoints and handlers
 func (s *Server) handleMediaCall(w http.ResponseWriter, r *http.Request) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "media manager unavailable"})
+		}
+	}()
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -283,6 +372,17 @@ func (s *Server) handleMediaCall(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PeerID == "" || req.SDP == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "peer_id and sdp required"})
+		return
+	}
+	if s.media == nil {
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "media manager unavailable"})
+		return
+	}
+	// trust-only (outgoing media)
+	if s.trustOnlyMedia && !s.IsTrusted(req.PeerID) {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "not trusted"})
 		return
 	}
 	callType := media.CallTypeAudio
@@ -326,6 +426,12 @@ func (s *Server) handleFilesSend(w http.ResponseWriter, r *http.Request) {
 	if s.IsBlocked(peerID) {
 		w.WriteHeader(http.StatusForbidden)
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "blocked"})
+		return
+	}
+	// trust-only (outgoing files)
+	if s.trustOnlyFiles && !s.IsTrusted(peerID) {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "not trusted"})
 		return
 	}
 	file, header, err := r.FormFile("file")
@@ -524,11 +630,34 @@ func (s *Server) handleFilesDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if t.Role != "receiver" || t.Status != filetransfer.StatusCompleted {
+		// try DB fallback
+		if s.dbstore != nil {
+			row := s.dbstore.Pool().QueryRow(r.Context(), "SELECT bytes, mime_type, size, file_hash FROM media_blobs WHERE id=$1 OR transfer_id=$1 ORDER BY created_at DESC LIMIT 1", id)
+			var bytes []byte
+			var mime string
+			var size int64
+			var fileHash *string
+			if err := row.Scan(&bytes, &mime, &size, &fileHash); err == nil {
+				if fileHash != nil && *fileHash != "" {
+					sum := sha256.Sum256(bytes)
+					if hex.EncodeToString(sum[:]) != *fileHash {
+						w.WriteHeader(http.StatusInternalServerError)
+						_, _ = w.Write([]byte("hash mismatch"))
+						return
+					}
+				}
+				if mime == "" { mime = "application/octet-stream" }
+				w.Header().Set("Content-Type", mime)
+				w.Header().Set("Content-Length", strconv.Itoa(len(bytes)))
+				_, _ = w.Write(bytes)
+				return
+			}
+		}
 		w.WriteHeader(http.StatusConflict)
 		_, _ = w.Write([]byte("file not available for download"))
 		return
 	}
-	// Serve file as attachment
+	// Serve file with correct mime, allow range for audio/video
 	f, err := os.Open(t.LocalPath)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -536,8 +665,12 @@ func (s *Server) handleFilesDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+t.Metadata.Name+"\"")
+	ct := t.Metadata.MimeType
+	if ct == "" {
+		ct = mime.TypeByExtension(filepath.Ext(t.Metadata.Name))
+		if ct == "" { ct = "application/octet-stream" }
+	}
+	w.Header().Set("Content-Type", ct)
 	http.ServeContent(w, r, t.Metadata.Name, t.EndTime, f)
 }
 
@@ -757,13 +890,44 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		"outbox_success": s.outboxSuccess,
 		"outbox_size": func() int { if s.outbox != nil { return s.outbox.Size() }; return 0 }(),
 		"chat_limit_default": map[string]any{"burst": s.chatDefaultBurst, "rate_per_sec": s.chatDefaultRate},
+		"chat_ttl_default": s.chatTTLDefault,
+		"chat_limit_masks": s.chatMaskRules,
 		"outbox_cfg": map[string]any{"max_retries": s.outboxMaxRetries, "base_backoff_ms": s.outboxBaseBackoffMs},
 		"chat_p50_ms": chatP50,
 		"chat_p95_ms": chatP95,
 		"file_p50_ms": fileP50,
 		"file_p95_ms": fileP95,
+		"file_chunk_p50_ms": func() int64 { if s.fileChunkLat!=nil { return s.fileChunkLat.Percentile(0.5) }; return 0 }(),
+		"file_chunk_p95_ms": func() int64 { if s.fileChunkLat!=nil { return s.fileChunkLat.Percentile(0.95) }; return 0 }(),
+		"file_completed": s.fileCompleted,
+		"file_failed": s.fileFailed,
+		"file_drop_ratio": func() float64 { denom := s.fileCompleted + s.fileFailed; if denom==0 { return 0 }; return float64(s.fileFailed)/float64(denom) }(),
+		"calls_started": s.callStarted,
+		"calls_connected": s.callConnected,
+		"calls_ended": s.callEnded,
+		"call_p50_ms": func() int64 { if s.callDur!=nil { return s.callDur.Percentile(0.5) }; return 0 }(),
+		"call_p95_ms": func() int64 { if s.callDur!=nil { return s.callDur.Percentile(0.95) }; return 0 }(),
+		"trust_only": map[string]any{"files": s.trustOnlyFiles, "media": s.trustOnlyMedia},
 		"uptime_sec": int64(time.Since(s.start).Seconds()),
 	})
+}
+func (s *Server) handleConfigTrustOnly(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct{
+		Files bool `json:"files"`
+		Media bool `json:"media"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false})
+		return
+	}
+	s.trustOnlyFiles = req.Files
+	s.trustOnlyMedia = req.Media
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func (s *Server) handleConfigChatLimitPeer(w http.ResponseWriter, r *http.Request) {
@@ -835,6 +999,17 @@ func (s *Server) handleSecurity(w http.ResponseWriter, r *http.Request) {
 			fpHex = hex.EncodeToString(fp[:])
 		}
 	}
+	trusted, unknown, blocked := 0, 0, 0
+	for _, lvl := range s.trust {
+		switch lvl {
+		case "trusted":
+			trusted++
+		case "blocked":
+			blocked++
+		default:
+			unknown++
+		}
+	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"peer_id": s.host.ID().String(),
 		"fingerprint": fpHex,
@@ -843,13 +1018,12 @@ func (s *Server) handleSecurity(w http.ResponseWriter, r *http.Request) {
 		"relay_limits": map[string]any{"burst": 5, "rate_per_sec": 1},
 		"protocols": s.info.Protocols,
 		"capabilities": s.info.Capabilities,
-		"blocked_count": len(s.blocked),
+		"trust_levels": map[string]int{"trusted": trusted, "unknown": unknown, "blocked": blocked},
 	})
 }
 
 func (s *Server) IsBlocked(peerID string) bool {
-	_, ok := s.blocked[peerID]
-	return ok
+	return s.trust[peerID] == "blocked"
 }
 func (s *Server) handleSecurityBlockAdd(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -862,7 +1036,7 @@ func (s *Server) handleSecurityBlockAdd(w http.ResponseWriter, r *http.Request) 
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false})
 		return
 	}
-	s.blocked[req.PeerID] = struct{}{}
+	s.trust[req.PeerID] = "blocked"
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 func (s *Server) handleSecurityBlockRemove(w http.ResponseWriter, r *http.Request) {
@@ -876,15 +1050,93 @@ func (s *Server) handleSecurityBlockRemove(w http.ResponseWriter, r *http.Reques
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false})
 		return
 	}
-	delete(s.blocked, req.PeerID)
+	delete(s.trust, req.PeerID)
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 func (s *Server) handleSecurityBlockList(w http.ResponseWriter, r *http.Request) {
-	list := make([]string, 0, len(s.blocked))
-	for p := range s.blocked {
+	list := make([]string, 0, len(s.trust))
+	for p, lvl := range s.trust {
+		if lvl != "blocked" {
+			continue
+		}
 		list = append(list, p)
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{"peers": list})
+}
+
+func (s *Server) handleSecurityTrustSet(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		PeerID string `json:"peer_id"`
+		Level  string `json:"level"` // trusted|unknown|blocked
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PeerID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false})
+		return
+	}
+	level := req.Level
+	if level != "trusted" && level != "unknown" && level != "blocked" {
+		level = "unknown"
+	}
+	s.trust[req.PeerID] = level
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+func (s *Server) handleSecurityTrustList(w http.ResponseWriter, r *http.Request) {
+	out := make([]map[string]string, 0, len(s.trust))
+	for p, lvl := range s.trust {
+		out = append(out, map[string]string{"peer_id": p, "level": lvl})
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"trust": out})
+}
+
+func (s *Server) handleConfigChatTTL(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct{ TTL int `json:"ttl"` }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TTL <= 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false})
+		return
+	}
+	s.chatTTLDefault = req.TTL
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+func (s *Server) handleConfigChatLimitMasks(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct{ Rules []maskRule `json:"rules"` }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false})
+		return
+	}
+	s.chatMaskRules = req.Rules
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+func (s *Server) handleConfigMediaAutoAccept(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct{ Enable bool `json:"enable"` }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false})
+		return
+	}
+	s.mediaAutoAccept = req.Enable
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
@@ -1060,12 +1312,57 @@ func (s *Server) handlePresenceUpdate(w http.ResponseWriter, r *http.Request) {
 	self := s.presence.Self()
 	self.DisplayName = req.DisplayName
 	s.presence.UpdateSelf(self)
+	if s.profilePath != "" {
+		_ = os.MkdirAll(filepath.Dir(s.profilePath), 0o755)
+		_ = os.WriteFile(s.profilePath, []byte(`{"display_name":"`+req.DisplayName+`"}`), 0o644)
+	}
 	
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func (s *Server) handlePresencePeers(w http.ResponseWriter, r *http.Request) {
-	peers := s.presence.Snapshot()
+	var peers []presence.PeerPresence
+	if s.presence != nil {
+		peers = s.presence.Snapshot()
+		// Filter out stale entries to avoid "phantom" nodes piling up
+		if len(peers) > 0 {
+			nowMs := time.Now().UnixMilli()
+			pruned := make([]presence.PeerPresence, 0, len(peers))
+			seen := make(map[string]struct{}, len(peers))
+			for _, p := range peers {
+				// consider entries stale if not seen for > 8s (PresenceInterval is 2s by default)
+				if nowMs-p.LastSeenMs > 8000 {
+					continue
+				}
+				if _, ok := seen[p.Payload.PeerID]; ok {
+					continue
+				}
+				seen[p.Payload.PeerID] = struct{}{}
+				pruned = append(pruned, p)
+			}
+			peers = pruned
+		}
+	}
+	// Fallback: if presence store empty, synthesize from connected peers to avoid empty UI
+	if len(peers) == 0 {
+		now := time.Now().UnixMilli()
+		netPeers := s.host.Network().Peers()
+		out := make([]presence.PeerPresence, 0, len(netPeers))
+		for _, p := range netPeers {
+			out = append(out, presence.PeerPresence{
+				Payload: presence.Payload{
+					PeerID:       p.String(),
+					DisplayName:  "",
+					Capabilities: []string{"chat", "file", "media"},
+					Version:      "",
+					UptimeSec:    0,
+					TimestampMs:  now,
+				},
+				LastSeenMs: now,
+			})
+		}
+		peers = out
+	}
 	_ = json.NewEncoder(w).Encode(map[string]any{"peers": peers})
 }
 
@@ -1119,7 +1416,7 @@ func (s *Server) handleChatSend(w http.ResponseWriter, r *http.Request) {
 		Type:      "chat",
 		Timestamp: time.Now().UnixMilli(),
 		Sender:    s.host.ID().String(),
-		TTL:       8,
+		TTL:       func() int { if s.chatTTLDefault>0 { return s.chatTTLDefault }; return 8 }(),
 		Payload:   json.RawMessage([]byte(`{"text":` + strconv.Quote(req.Text) + `}`)),
 	}
 	// rate-limit per peer
@@ -1298,6 +1595,10 @@ func cors(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Access-Control-Request-Private-Network")
+		if strings.EqualFold(r.Header.Get("Access-Control-Request-Private-Network"), "true") {
+			w.Header().Set("Access-Control-Allow-Private-Network", "true")
+		}
 		w.Header().Set("Access-Control-Max-Age", "86400")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

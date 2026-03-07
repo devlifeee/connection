@@ -135,7 +135,7 @@ function PresenceChatList({ activeDialog, onSelect, unread }: { activeDialog: st
   const { data, isLoading } = useNodeAgentPresencePeers();
   const [searchTerm, setSearchTerm] = useState('');
   
-  const peers = data?.peers ?? [];
+  const peers = useMemo(() => data?.peers ?? [], [data?.peers]);
   const filteredPeers = useMemo(() => {
      if (!searchTerm) return peers;
      const term = searchTerm.toLowerCase();
