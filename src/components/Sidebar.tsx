@@ -138,7 +138,12 @@ function PresenceChatList({ activeDialog, onSelect, unread }: { activeDialog: st
   const peers = useMemo(() => data?.peers ?? [], [data?.peers]);
   const filteredPeers = useMemo(() => {
      // Filter peers to show only registered users (those with a display_name)
-     const registeredPeers = peers.filter(p => p.payload.display_name && p.payload.display_name.trim() !== "");
+     // Also exclude system Relay nodes (starting with Relay-)
+     const registeredPeers = peers.filter(p => 
+        p.payload.display_name && 
+        p.payload.display_name.trim() !== "" &&
+        !p.payload.display_name.startsWith("Relay-")
+     );
      
      if (!searchTerm) return registeredPeers;
      

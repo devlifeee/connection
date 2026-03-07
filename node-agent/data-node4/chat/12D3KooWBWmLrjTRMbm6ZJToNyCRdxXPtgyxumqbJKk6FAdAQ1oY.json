@@ -1,0 +1,15 @@
+{
+  "messages": [
+    {
+      "id": "1772884061888087000",
+      "type": "chat",
+      "timestamp": 1772884061888,
+      "sender": "12D3KooWBWmLrjTRMbm6ZJToNyCRdxXPtgyxumqbJKk6FAdAQ1oY",
+      "ttl": 8,
+      "payload": {
+        "text": "1"
+      },
+      "signature": "tHC64xsKT5zEKM30kwKgmv48Qkiybrx+HmVTTbo5d2N7T+JE7UGmF1qHCitutK/oabpcD9zyZx2jhJkwF1V2DA=="
+    }
+  ]
+}
